@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     database_url: str
 
     openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_timeout_seconds: float = 30.0
     ai_model: str = "openrouter/free"
 
     daily_ai_request_limit: int = 5
