@@ -1,3 +1,5 @@
+﻿from uuid import UUID
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -11,6 +13,11 @@ def get_user_by_email(db: Session, email: str) -> User | None:
 
 def get_user_by_id(db: Session, user_id: int) -> User | None:
     statement = select(User).where(User.id == user_id)
+    return db.scalar(statement)
+
+
+def get_user_by_supabase_id(db: Session, supabase_user_id: UUID) -> User | None:
+    statement = select(User).where(User.supabase_user_id == supabase_user_id)
     return db.scalar(statement)
 
 

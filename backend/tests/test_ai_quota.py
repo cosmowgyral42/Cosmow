@@ -411,3 +411,117 @@ def test_global_quota_never_exceeds_limit(unique_email):
 
     finally:
         db.close()
+
+
+def test_global_quota_never_exceeds_limit_under_concurrency(unique_email):
+    import threading
+
+    db = SessionLocal()
+    users = []
+
+    try:
+        for index in range(8):
+            users.append(
+                create_user(
+                    db,
+                    f"{unique_email}_global_concurrent_{index}@example.com",
+                )
+            )
+
+        user_ids = [user.id for user in users]
+        limit = settings.global_daily_ai_call_limit
+
+        # Leave exactly one global quota slot available.
+        global_usage = get_global_usage(db, users[0])
+
+        if global_usage is None:
+            from app.models.ai_global_usage import AIGlobalUsage
+
+            global_usage = AIGlobalUsage(
+                usage_date=get_user_today(users[0]),
+                successful_call_count=limit - 1,
+                reserved_count=0,
+            )
+            db.add(global_usage)
+        else:
+            global_usage.successful_call_count = limit - 1
+            global_usage.reserved_count = 0
+
+        db.commit()
+    finally:
+        db.close()
+
+    barrier = threading.Barrier(len(user_ids))
+    results = []
+    results_lock = threading.Lock()
+
+    def attempt_reservation(user_id):
+        local_db = SessionLocal()
+
+        try:
+            local_user = local_db.get(User, user_id)
+            if local_user is None:
+                raise AssertionError(f"Test user {user_id} was not found")
+
+            barrier.wait(timeout=15)
+
+            try:
+                reserve_ai_call(local_db, local_user)
+                result = "reserved"
+            except ValueError:
+                result = "rejected"
+
+            with results_lock:
+                results.append(result)
+
+        except Exception as exc:
+            with results_lock:
+                results.append(f"error:{type(exc).__name__}:{exc}")
+        finally:
+            local_db.close()
+
+    threads = [
+        threading.Thread(target=attempt_reservation, args=(user_id,))
+        for user_id in user_ids
+    ]
+
+    try:
+        for thread in threads:
+            thread.start()
+
+        for thread in threads:
+            thread.join(timeout=30)
+
+        assert all(not thread.is_alive() for thread in threads), (
+            "A concurrent quota reservation thread did not finish"
+        )
+
+        errors = [result for result in results if result.startswith("error:")]
+        assert not errors, f"Concurrent reservation errors: {errors}"
+
+        assert len(results) == len(user_ids)
+        assert results.count("reserved") == 1
+        assert results.count("rejected") == len(user_ids) - 1
+
+        verify_db = SessionLocal()
+        try:
+            verification_user = verify_db.get(User, user_ids[0])
+            assert verification_user is not None
+
+            final_usage = get_global_usage(verify_db, verification_user)
+
+            assert final_usage is not None
+            assert final_usage.successful_call_count == limit - 1
+            assert final_usage.reserved_count == 1
+            assert (
+                final_usage.successful_call_count + final_usage.reserved_count
+                <= limit
+            )
+        finally:
+            verify_db.close()
+    finally:
+        # Threads must finish before the test returns. The existing
+        # autouse fixture resets global quota counters around each test.
+        for thread in threads:
+            if thread.is_alive():
+                thread.join(timeout=5)

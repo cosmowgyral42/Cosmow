@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -18,12 +18,20 @@ class Settings(BaseSettings):
     openrouter_timeout_seconds: float = 30.0
     ai_model: str = "openrouter/free"
 
+    gemini_api_key: str = ""
+    gemini_embedding_model: str = "gemini-embedding-2"
+    gemini_embedding_dimensions: int = 768
+    gemini_embedding_timeout_seconds: float = 15.0
+
     daily_ai_request_limit: int = 5
     global_daily_ai_call_limit: int = 50
 
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
+
+    supabase_url: str = "https://cuozhqperbnvdwojurqp.supabase.co"
+    supabase_jwks_timeout_seconds: float = 5.0
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",

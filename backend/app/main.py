@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import time
 import uuid
 
@@ -7,6 +7,8 @@ from fastapi.responses import JSONResponse
 
 from app.api.ai import router as ai_router
 from app.api.auth import router as auth_router
+from app.api.documents import router as documents_router
+from app.api.rag import router as rag_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -77,3 +79,12 @@ app.include_router(
     ai_router,
     prefix="/api/v1",
 )
+
+
+app.include_router(
+    documents_router,
+    prefix="/api/v1",
+)
+
+
+app.include_router(rag_router, prefix="/api/v1")
