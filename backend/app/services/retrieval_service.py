@@ -1,4 +1,4 @@
-﻿import math
+import math
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -41,51 +41,40 @@ def retrieve_chunks(
         ):
             raise RetrievalError("Embedding provider returned an invalid vector.")
 
-        rows = db.execute(
-            select(DocumentChunk, Document.title)
-            .join(Document, Document.id == DocumentChunk.document_id)
-            .where(
-                Document.user_id == user_id,
-                Document.status == "indexed",
-                DocumentChunk.embedding.is_not(None),
-            )
-        ).all()
-
-        scored = []
         query_norm = math.sqrt(sum(value * value for value in query_vector))
         if query_norm == 0:
             raise RetrievalError("Query embedding is invalid.")
 
-        for chunk, title in rows:
-            vector = chunk.embedding
-            if (
-                not isinstance(vector, list)
-                or len(vector) != len(query_vector)
-                or not all(
-                    isinstance(value, (int, float)) and math.isfinite(value)
-                    for value in vector
-                )
-            ):
+        cosine_distance = DocumentChunk.embedding_vector.cosine_distance(
+            query_vector
+        ).label("cosine_distance")
+
+        rows = db.execute(
+            select(DocumentChunk, Document.title, cosine_distance)
+            .join(Document, Document.id == DocumentChunk.document_id)
+            .where(
+                Document.user_id == user_id,
+                Document.status == "indexed",
+                DocumentChunk.embedding_vector.is_not(None),
+            )
+            .order_by(cosine_distance)
+            .limit(limit)
+        ).all()
+
+        results = []
+        for chunk, title, distance in rows:
+            if not math.isfinite(distance):
                 continue
 
-            chunk_norm = math.sqrt(sum(value * value for value in vector))
-            if chunk_norm == 0:
-                continue
-
-            similarity = sum(
-                a * b for a, b in zip(query_vector, vector)
-            ) / (query_norm * chunk_norm)
-
-            scored.append({
+            results.append({
                 "chunk_id": chunk.id,
                 "document_id": chunk.document_id,
                 "title": title,
                 "content": chunk.content,
-                "similarity": similarity,
+                "similarity": 1.0 - distance,
             })
 
-        scored.sort(key=lambda item: item["similarity"], reverse=True)
-        return scored[:limit]
+        return results
 
     except (EmbeddingError, RetrievalError):
         raise

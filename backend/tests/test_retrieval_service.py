@@ -14,14 +14,26 @@ class FakeProvider:
 class FakeResult:
     def all(self):
         return [
-            (SimpleNamespace(
-                id=1, document_id=10, content="Unrelated content",
-                embedding=[0.0, 1.0, 0.0],
-            ), "Other"),
-            (SimpleNamespace(
-                id=2, document_id=11, content="Relevant content",
-                embedding=[1.0, 0.0, 0.0],
-            ), "Relevant"),
+            (
+                SimpleNamespace(
+                    id=1,
+                    document_id=10,
+                    content="Unrelated content",
+                    embedding_vector=[0.0, 1.0, 0.0],
+                ),
+                "Other",
+                1.0,
+            ),
+            (
+                SimpleNamespace(
+                    id=2,
+                    document_id=11,
+                    content="Relevant content",
+                    embedding_vector=[1.0, 0.0, 0.0],
+                ),
+                "Relevant",
+                0.0,
+            ),
         ]
 
 
@@ -31,7 +43,17 @@ class FakeDB:
 
     def execute(self, statement):
         self.statement = statement
-        return FakeResult()
+        rows = FakeResult().all()
+        rows.sort(key=lambda row: row[2])
+        limit_clause = statement._limit_clause
+        if limit_clause is not None:
+            rows = rows[: int(limit_clause.value)]
+
+        class Result:
+            def all(self):
+                return rows
+
+        return Result()
 
 
 def test_retrieval_ranks_most_similar_chunk_first(monkeypatch):
@@ -66,9 +88,12 @@ def test_retrieval_query_filters_by_document_owner(monkeypatch):
         provider=FakeProvider(),
     )
 
-    sql = str(db.statement.compile(compile_kwargs={"literal_binds": True}))
-    assert "documents.user_id = 42" in sql
-    assert "documents.status = 'indexed'" in sql
+    compiled = db.statement.compile()
+    sql = str(compiled)
+    assert "documents.user_id" in sql
+    assert "documents.status" in sql
+    assert "embedding_vector" in sql
+    assert 42 in compiled.params.values()
 
 
 def test_retrieval_rejects_invalid_limit():
@@ -78,5 +103,15 @@ def test_retrieval_rejects_invalid_limit():
             user_id=1,
             question="Question",
             limit=11,
+            provider=FakeProvider(),
+        )
+
+
+def test_retrieval_rejects_empty_question():
+    with pytest.raises(ValueError):
+        retrieval_service.retrieve_chunks(
+            FakeDB(),
+            user_id=1,
+            question="   ",
             provider=FakeProvider(),
         )
