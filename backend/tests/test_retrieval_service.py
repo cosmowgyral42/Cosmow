@@ -70,9 +70,9 @@ def test_retrieval_ranks_most_similar_chunk_first(monkeypatch):
         provider=FakeProvider(),
     )
 
+    assert len(results) == 1
     assert results[0]["content"] == "Relevant content"
     assert results[0]["similarity"] == pytest.approx(1.0)
-    assert results[1]["content"] == "Unrelated content"
 
 
 def test_retrieval_query_filters_by_document_owner(monkeypatch):
@@ -194,3 +194,71 @@ def test_retrieval_skips_null_and_nonfinite_distances(monkeypatch):
     assert len(results) == 1
     assert results[0]["content"] == "Valid result"
     assert results[0]["similarity"] == pytest.approx(0.8)
+
+
+def test_retrieval_keeps_above_and_exact_threshold(monkeypatch):
+    monkeypatch.setattr(
+        retrieval_service.settings, "gemini_embedding_dimensions", 3
+    )
+    monkeypatch.setattr(
+        retrieval_service.settings, "rag_min_similarity", 0.70
+    )
+
+    rows = [
+        (SimpleNamespace(id=1, document_id=10, content="Above"), "Doc", 0.2),
+        (SimpleNamespace(id=2, document_id=11, content="Exact"), "Doc", 0.3),
+        (SimpleNamespace(id=3, document_id=12, content="Below"), "Doc", 0.4),
+    ]
+
+    class DistanceDB:
+        def execute(self, statement):
+            class Result:
+                def all(self):
+                    return rows
+            return Result()
+
+    results = retrieval_service.retrieve_chunks(
+        DistanceDB(),
+        user_id=7,
+        question="Find relevant content",
+        provider=FakeProvider(),
+    )
+
+    assert [item["content"] for item in results] == ["Above", "Exact"]
+    assert results[0]["similarity"] == pytest.approx(0.8)
+    assert results[1]["similarity"] == pytest.approx(0.7)
+
+
+def test_retrieval_returns_empty_when_all_chunks_below_threshold(monkeypatch):
+    monkeypatch.setattr(
+        retrieval_service.settings, "gemini_embedding_dimensions", 3
+    )
+    monkeypatch.setattr(
+        retrieval_service.settings, "rag_min_similarity", 0.70
+    )
+
+    class DistanceDB:
+        def execute(self, statement):
+            class Result:
+                def all(self):
+                    return [
+                        (
+                            SimpleNamespace(
+                                id=1,
+                                document_id=10,
+                                content="Weak match",
+                            ),
+                            "Doc",
+                            0.8,
+                        )
+                    ]
+            return Result()
+
+    results = retrieval_service.retrieve_chunks(
+        DistanceDB(),
+        user_id=7,
+        question="Find relevant content",
+        provider=FakeProvider(),
+    )
+
+    assert results == []

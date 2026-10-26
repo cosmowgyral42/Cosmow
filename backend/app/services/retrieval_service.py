@@ -66,12 +66,16 @@ def retrieve_chunks(
             if distance is None or not math.isfinite(distance):
                 continue
 
+            similarity = 1.0 - distance
+            if similarity < settings.rag_min_similarity:
+                continue
+
             results.append({
                 "chunk_id": chunk.id,
                 "document_id": chunk.document_id,
                 "title": title,
                 "content": chunk.content,
-                "similarity": 1.0 - distance,
+                "similarity": similarity,
             })
 
         return results

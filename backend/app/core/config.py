@@ -1,5 +1,6 @@
 ﻿from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,6 +23,7 @@ class Settings(BaseSettings):
     gemini_embedding_model: str = "gemini-embedding-2"
     gemini_embedding_dimensions: int = 768
     gemini_embedding_timeout_seconds: float = 15.0
+    rag_min_similarity: float = Field(default=0.70, ge=0.0, le=1.0)
 
     daily_ai_request_limit: int = 5
     global_daily_ai_call_limit: int = 50
