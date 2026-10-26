@@ -5,11 +5,14 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import settings
 from app.core.database import Base
+from app.core.migration_safety import validate_local_migration_target
 import app.models
 
 
 config = context.config
 
+# Fail closed before any migration execution.
+validate_local_migration_target(settings.database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -32,7 +35,6 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section)
-
     configuration["sqlalchemy.url"] = settings.database_url
 
     connectable = engine_from_config(
