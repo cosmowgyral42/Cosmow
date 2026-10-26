@@ -57,10 +57,15 @@ def test_rag_returns_answer_and_sources(monkeypatch):
     assert data["sources"][0]["chunk_id"] == 3
 
 
-def test_rag_returns_404_when_no_context(monkeypatch):
+def test_rag_returns_404_without_calling_ai_when_no_context(monkeypatch):
     monkeypatch.setattr(
         rag_api, "retrieve_chunks", lambda *args, **kwargs: []
     )
+
+    def unexpected_ai_call(**kwargs):
+        raise AssertionError("AI must not be called without retrieved context")
+
+    monkeypatch.setattr(rag_api.ai_service, "generate", unexpected_ai_call)
 
     with TestClient(app) as client:
         response = client.post(

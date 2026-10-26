@@ -144,6 +144,16 @@ def test_real_pgvector_retrieval_and_user_isolation(
             for result in results
         )
 
+
+        assert all(
+            result["similarity"] >= settings.rag_min_similarity
+            for result in results
+        )
+        assert all(
+            result["content"] != "Unrelated chunk about cooking"
+            for result in results
+        )
+
     finally:
         db.rollback()
         user_ids = db.scalars(
