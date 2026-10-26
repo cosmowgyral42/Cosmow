@@ -115,3 +115,82 @@ def test_retrieval_rejects_empty_question():
             question="   ",
             provider=FakeProvider(),
         )
+
+class ConfigurableProvider:
+    def __init__(self, vector):
+        self.vector = vector
+
+    def embed(self, text, task_type):
+        return self.vector
+
+
+@pytest.mark.parametrize(
+    "vector",
+    [
+        [1.0, 2.0],                 # Wrong dimensions
+        [float("nan"), 0.0, 1.0],  # NaN
+        [float("inf"), 0.0, 1.0],  # Infinity
+        [0.0, 0.0, 0.0],           # Zero vector
+        [1.7e308, 1.7e308, 1.7e308],  # Non-finite norm
+    ],
+)
+def test_retrieval_rejects_invalid_query_vectors(monkeypatch, vector):
+    monkeypatch.setattr(
+        retrieval_service.settings, "gemini_embedding_dimensions", 3
+    )
+
+    with pytest.raises(retrieval_service.RetrievalError):
+        retrieval_service.retrieve_chunks(
+            FakeDB(),
+            user_id=7,
+            question="Test invalid vector",
+            provider=ConfigurableProvider(vector),
+        )
+
+
+def test_retrieval_skips_null_and_nonfinite_distances(monkeypatch):
+    monkeypatch.setattr(
+        retrieval_service.settings, "gemini_embedding_dimensions", 3
+    )
+
+    rows = [
+        (
+            SimpleNamespace(
+                id=1, document_id=10, content="Undefined distance"
+            ),
+            "Undefined",
+            None,
+        ),
+        (
+            SimpleNamespace(
+                id=2, document_id=11, content="Invalid distance"
+            ),
+            "Invalid",
+            float("inf"),
+        ),
+        (
+            SimpleNamespace(
+                id=3, document_id=12, content="Valid result"
+            ),
+            "Valid",
+            0.2,
+        ),
+    ]
+
+    class DistanceDB:
+        def execute(self, statement):
+            class Result:
+                def all(self):
+                    return rows
+            return Result()
+
+    results = retrieval_service.retrieve_chunks(
+        DistanceDB(),
+        user_id=7,
+        question="Find valid content",
+        provider=FakeProvider(),
+    )
+
+    assert len(results) == 1
+    assert results[0]["content"] == "Valid result"
+    assert results[0]["similarity"] == pytest.approx(0.8)

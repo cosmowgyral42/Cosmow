@@ -41,8 +41,8 @@ def retrieve_chunks(
         ):
             raise RetrievalError("Embedding provider returned an invalid vector.")
 
-        query_norm = math.sqrt(sum(value * value for value in query_vector))
-        if query_norm == 0:
+        query_norm = math.hypot(*query_vector)
+        if not math.isfinite(query_norm) or query_norm == 0:
             raise RetrievalError("Query embedding is invalid.")
 
         cosine_distance = DocumentChunk.embedding_vector.cosine_distance(
@@ -63,7 +63,7 @@ def retrieve_chunks(
 
         results = []
         for chunk, title, distance in rows:
-            if not math.isfinite(distance):
+            if distance is None or not math.isfinite(distance):
                 continue
 
             results.append({
