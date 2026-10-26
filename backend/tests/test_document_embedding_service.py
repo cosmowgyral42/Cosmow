@@ -65,14 +65,14 @@ def create_document_with_chunks(db, email, chunk_texts):
 
 
 def test_embed_document_persists_vectors(monkeypatch, unique_email):
-    monkeypatch.setattr(settings, "gemini_embedding_dimensions", 3)
+    monkeypatch.setattr(settings, "gemini_embedding_dimensions", 768)
     db = SessionLocal()
     try:
         user, document, chunks = create_document_with_chunks(
             db, unique_email, ["first chunk", "second chunk"]
         )
         provider = FakeEmbeddingProvider(
-            vectors=[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
+            vectors=[[0.1] * 768, [0.4] * 768]
         )
 
         count = embed_document(
@@ -92,8 +92,12 @@ def test_embed_document_persists_vectors(monkeypatch, unique_email):
             .order_by(DocumentChunk.chunk_index)
         ).all()
         assert [chunk.embedding for chunk in saved] == [
-            [0.1, 0.2, 0.3],
-            [0.4, 0.5, 0.6],
+            [0.1] * 768,
+            [0.4] * 768,
+        ]
+        assert [chunk.embedding_vector for chunk in saved] == [
+            [0.1] * 768,
+            [0.4] * 768,
         ]
         assert provider.calls == 2
     finally:

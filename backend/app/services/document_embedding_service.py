@@ -62,6 +62,7 @@ def embed_document(
 
         for chunk, vector in zip(chunks, vectors):
             chunk.embedding = vector
+            chunk.embedding_vector = vector
 
         document.status = "indexed"
         db.commit()
