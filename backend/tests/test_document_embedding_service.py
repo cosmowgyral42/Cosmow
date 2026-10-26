@@ -204,3 +204,32 @@ def test_document_without_chunks_fails_safely(unique_email):
     finally:
         db.rollback()
         db.close()
+
+def test_zero_embedding_vector_is_rejected(monkeypatch, unique_email):
+    monkeypatch.setattr(settings, "gemini_embedding_dimensions", 3)
+    db = SessionLocal()
+    try:
+        user, document, _ = create_document_with_chunks(
+            db, unique_email, ["first chunk"]
+        )
+        provider = FakeEmbeddingProvider(vectors=[[0.0, 0.0, 0.0]])
+
+        with pytest.raises(DocumentEmbeddingError, match="invalid vector"):
+            embed_document(
+                db,
+                user_id=user.id,
+                document_id=document.id,
+                provider=provider,
+            )
+
+        db.expire_all()
+        chunk = db.scalar(
+            select(DocumentChunk).where(
+                DocumentChunk.document_id == document.id
+            )
+        )
+        assert chunk.embedding is None
+        assert db.get(Document, document.id).status == "uploaded"
+    finally:
+        db.rollback()
+        db.close()

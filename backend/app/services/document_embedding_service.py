@@ -54,6 +54,8 @@ def embed_document(
         if any(
             len(vector) != expected_dimensions
             or not all(math.isfinite(value) for value in vector)
+            or not math.isfinite(math.hypot(*vector))
+            or math.hypot(*vector) == 0
             for vector in vectors
         ):
             raise DocumentEmbeddingError(
