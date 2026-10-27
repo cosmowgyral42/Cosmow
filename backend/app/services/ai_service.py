@@ -85,40 +85,40 @@ class AIService:
             raise AIServiceQuotaError(str(exc)) from exc
 
         completed = False
-
         try:
-            for chunk in self.provider.stream(request):
-                yield chunk
-
-            completed = True
-
-        except AIProviderRateLimitError as exc:
             try:
-                release_ai_call(db, user)
-            except Exception:
-                db.rollback()
-            raise AIServiceRateLimitError(
-                "AI provider rate limit reached."
-            ) from exc
-        except Exception as exc:
-            try:
-                release_ai_call(db, user)
-            except Exception:
-                db.rollback()
-
-            raise AIServiceError(
-                "AI service is temporarily unavailable."
-            ) from exc
-
+                for chunk in self.provider.stream(request):
+                    yield chunk
+                completed = True
+            except AIProviderRateLimitError as exc:
+                raise AIServiceRateLimitError(
+                    "AI provider rate limit reached."
+                ) from exc
+            except Exception as exc:
+                raise AIServiceError(
+                    "AI service is temporarily unavailable."
+                ) from exc
         finally:
             if completed:
                 try:
                     finalize_ai_call(db, user)
-                except Exception:
+                except Exception as exc:
                     db.rollback()
+                    try:
+                        release_ai_call(db, user)
+                    except Exception:
+                        db.rollback()
                     raise AIServiceError(
                         "AI usage could not be finalized."
-                    )
+                    ) from exc
+            else:
+                # Includes provider errors and consumers closing the
+                # generator before the stream finishes.
+                try:
+                    release_ai_call(db, user)
+                except Exception:
+                    db.rollback()
+
 
 def get_ai_service(provider: AIProvider) -> AIService:
     return AIService(provider)

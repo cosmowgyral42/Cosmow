@@ -187,3 +187,51 @@ def test_provider_rate_limit_releases_reserved_quota(monkeypatch):
     release.assert_called_once_with(db, user)
     finalize.assert_not_called()
     provider.generate.assert_called_once()
+
+
+
+def test_stream_finalizes_quota_after_success():
+    from types import SimpleNamespace
+
+    from app.ai.schemas import AIRequest
+    from app.services import ai_service as service_module
+
+    db = SimpleNamespace(rollback=Mock())
+    user = SimpleNamespace(id=42)
+    provider = Mock()
+    provider.stream.return_value = iter(["one", "two"])
+    service = AIService(provider)
+
+    with patch.object(service_module, "reserve_ai_call") as reserve:
+        with patch.object(service_module, "finalize_ai_call") as finalize:
+            with patch.object(service_module, "release_ai_call") as release:
+                result = list(service.stream(db, user, AIRequest(prompt="test")))
+
+    assert result == ["one", "two"]
+    reserve.assert_called_once_with(db, user)
+    finalize.assert_called_once_with(db, user)
+    release.assert_not_called()
+
+
+def test_stream_releases_quota_when_consumer_closes_early():
+    from types import SimpleNamespace
+
+    from app.ai.schemas import AIRequest
+    from app.services import ai_service as service_module
+
+    db = SimpleNamespace(rollback=Mock())
+    user = SimpleNamespace(id=42)
+    provider = Mock()
+    provider.stream.return_value = iter(["first", "second"])
+    service = AIService(provider)
+
+    with patch.object(service_module, "reserve_ai_call") as reserve:
+        with patch.object(service_module, "finalize_ai_call") as finalize:
+            with patch.object(service_module, "release_ai_call") as release:
+                stream = service.stream(db, user, AIRequest(prompt="test"))
+                assert next(stream) == "first"
+                stream.close()
+
+    reserve.assert_called_once_with(db, user)
+    release.assert_called_once_with(db, user)
+    finalize.assert_not_called()
