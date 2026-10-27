@@ -12,6 +12,10 @@ class AIProviderError(Exception):
     """Base exception for AI provider failures."""
 
 
+class AIProviderRateLimitError(AIProviderError):
+    """The upstream AI provider rejected a request due to rate limits."""
+
+
 class OpenRouterProvider(AIProvider):
     def __init__(
         self,
@@ -36,12 +40,16 @@ class OpenRouterProvider(AIProvider):
     ) -> dict:
         return {
             "model": settings.ai_model,
-            "messages": [
-                {
+            "messages": (
+                ([{
+                    "role": "system",
+                    "content": request.system_prompt,
+                }] if request.system_prompt else [])
+                + [{
                     "role": "user",
                     "content": request.prompt,
-                }
-            ],
+                }]
+            ),
             "temperature": request.temperature,
             "max_tokens": request.max_tokens,
             "stream": stream,
@@ -65,6 +73,10 @@ class OpenRouterProvider(AIProvider):
                 "Unable to reach the AI provider."
             ) from exc
 
+        if getattr(response, "status_code", None) == 429:
+            raise AIProviderRateLimitError(
+                "OpenRouter request failed with status 429 (rate limit)."
+            )
         if response.is_error:
             raise AIProviderError(
                 f"OpenRouter request failed with status {response.status_code}."
@@ -104,6 +116,10 @@ class OpenRouterProvider(AIProvider):
                 timeout=self.timeout,
             ) as response:
 
+                if getattr(response, "status_code", None) == 429:
+                    raise AIProviderRateLimitError(
+                        "OpenRouter request failed with status 429 (rate limit)."
+                    )
                 if response.is_error:
                     raise AIProviderError(
                         f"OpenRouter request failed with status {response.status_code}."

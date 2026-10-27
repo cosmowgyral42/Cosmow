@@ -143,3 +143,47 @@ def test_ai_service_handles_finalize_failure():
     provider.generate.assert_called_once()
     finalize.assert_called_once_with(db, user)
     db.rollback.assert_called_once()
+
+
+def test_provider_rate_limit_releases_reserved_quota(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    from app.ai.providers.openrouter import AIProviderRateLimitError
+    from app.ai.schemas import AIRequest
+    from app.services import ai_service as service_module
+    from app.services.ai_service import (
+        AIService,
+        AIServiceRateLimitError,
+    )
+
+    db = SimpleNamespace(rollback=Mock())
+    user = SimpleNamespace(id=42)
+    provider = SimpleNamespace(
+        generate=Mock(
+            side_effect=AIProviderRateLimitError(
+                "OpenRouter request failed with status 429 (rate limit)."
+            )
+        )
+    )
+    reserve = Mock()
+    release = Mock()
+    finalize = Mock()
+
+    monkeypatch.setattr(service_module, "reserve_ai_call", reserve)
+    monkeypatch.setattr(service_module, "release_ai_call", release)
+    monkeypatch.setattr(service_module, "finalize_ai_call", finalize)
+
+    service = AIService(provider=provider)
+
+    try:
+        service.generate(db=db, user=user, request=AIRequest(prompt="test"))
+    except AIServiceRateLimitError:
+        pass
+    else:
+        raise AssertionError("Expected AIServiceRateLimitError")
+
+    reserve.assert_called_once_with(db, user)
+    release.assert_called_once_with(db, user)
+    finalize.assert_not_called()
+    provider.generate.assert_called_once()

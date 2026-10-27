@@ -12,8 +12,19 @@ from app.services.ai_quota import (
 )
 
 
+from app.ai.providers.openrouter import AIProviderRateLimitError
+
+
 class AIServiceError(Exception):
     """Base exception for AI service failures."""
+
+
+class AIServiceQuotaError(AIServiceError):
+    """The application's own AI usage quota has been exhausted."""
+
+
+class AIServiceRateLimitError(AIServiceError):
+    """The upstream AI provider is rate-limiting requests."""
 
 
 class AIService:
@@ -29,10 +40,18 @@ class AIService:
         try:
             reserve_ai_call(db, user)
         except ValueError as exc:
-            raise AIServiceError(str(exc)) from exc
+            raise AIServiceQuotaError(str(exc)) from exc
 
         try:
             response = self.provider.generate(request)
+        except AIProviderRateLimitError as exc:
+            try:
+                release_ai_call(db, user)
+            except Exception:
+                db.rollback()
+            raise AIServiceRateLimitError(
+                "AI provider rate limit reached."
+            ) from exc
         except Exception as exc:
             try:
                 release_ai_call(db, user)
@@ -63,7 +82,7 @@ class AIService:
         try:
             reserve_ai_call(db, user)
         except ValueError as exc:
-            raise AIServiceError(str(exc)) from exc
+            raise AIServiceQuotaError(str(exc)) from exc
 
         completed = False
 
@@ -73,6 +92,14 @@ class AIService:
 
             completed = True
 
+        except AIProviderRateLimitError as exc:
+            try:
+                release_ai_call(db, user)
+            except Exception:
+                db.rollback()
+            raise AIServiceRateLimitError(
+                "AI provider rate limit reached."
+            ) from exc
         except Exception as exc:
             try:
                 release_ai_call(db, user)
