@@ -127,3 +127,34 @@ def test_openrouter_provider_handles_empty_response(monkeypatch):
         provider.generate(
             AIRequest(prompt="Hello COSMOW")
         )
+
+
+
+def test_openrouter_payload_sends_system_prompt_as_system_message():
+    from app.ai.providers.openrouter import OpenRouterProvider
+    from app.ai.schemas import AIRequest
+
+    provider = OpenRouterProvider(api_key="test-key")
+    request = AIRequest(
+        prompt="Document context and user question",
+        system_prompt="Follow trusted instructions only.",
+    )
+
+    payload = provider._payload(request)
+
+    assert payload["messages"] == [
+        {"role": "system", "content": "Follow trusted instructions only."},
+        {"role": "user", "content": "Document context and user question"},
+    ]
+
+
+def test_openrouter_payload_without_system_prompt_remains_compatible():
+    from app.ai.providers.openrouter import OpenRouterProvider
+    from app.ai.schemas import AIRequest
+
+    provider = OpenRouterProvider(api_key="test-key")
+    payload = provider._payload(AIRequest(prompt="Hello"))
+
+    assert payload["messages"] == [
+        {"role": "user", "content": "Hello"},
+    ]
