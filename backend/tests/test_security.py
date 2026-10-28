@@ -35,3 +35,16 @@ def test_invalid_login_returns_401(unique_email):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid email or password"
+
+
+
+def test_login_rejects_oversized_password(client, unique_email):
+    response = client.post(
+        "/api/v1/auth/login",
+        json={
+            "email": unique_email,
+            "password": "x" * 129,
+        },
+    )
+
+    assert response.status_code == 422

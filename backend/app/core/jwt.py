@@ -27,11 +27,11 @@ def decode_access_token(token: str) -> str:
         token,
         settings.jwt_secret_key,
         algorithms=[settings.jwt_algorithm],
+        options={"require": ["exp", "sub"]},
     )
 
     subject = payload.get("sub")
-
-    if not subject:
-        raise ValueError("Token subject is missing")
+    if not isinstance(subject, str) or not subject.strip():
+        raise ValueError("Invalid token subject")
 
     return subject

@@ -1,4 +1,4 @@
-﻿def test_register(client, unique_email):
+def test_register(client, unique_email):
     response = client.post(
         "/api/v1/auth/register",
         json={
@@ -118,3 +118,46 @@ def test_me_with_invalid_token(client):
     )
 
     assert response.status_code == 401
+
+
+
+def test_local_jwt_requires_subject_and_expiry():
+    import jwt
+    import pytest
+
+    from app.core import jwt as jwt_module
+    from app.core.config import settings
+
+    missing_subject = jwt.encode(
+        {"exp": 4102444800},
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
+    missing_expiry = jwt.encode(
+        {"sub": "123"},
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
+
+    with pytest.raises(jwt.MissingRequiredClaimError):
+        jwt_module.decode_access_token(missing_subject)
+
+    with pytest.raises(jwt.MissingRequiredClaimError):
+        jwt_module.decode_access_token(missing_expiry)
+
+
+def test_local_jwt_rejects_non_string_subject():
+    import jwt
+    import pytest
+
+    from app.core import jwt as jwt_module
+    from app.core.config import settings
+
+    token = jwt.encode(
+        {"sub": 123, "exp": 4102444800},
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
+
+    with pytest.raises(jwt.exceptions.InvalidSubjectError):
+        jwt_module.decode_access_token(token)
