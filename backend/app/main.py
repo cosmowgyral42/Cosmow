@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import time
 import uuid
 
@@ -21,16 +21,26 @@ app = FastAPI(
 )
 
 
+def _add_security_headers(response, request_id: str) -> None:
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=()"
+    )
+
+
 @app.middleware("http")
 async def request_observability(request: Request, call_next):
     request_id = uuid.uuid4().hex
+    request.state.request_id = request_id
     start = time.perf_counter()
 
     try:
         response = await call_next(request)
     except Exception:
         duration_ms = (time.perf_counter() - start) * 1000
-
         logging.getLogger("cosmow.http").exception(
             "request_failed request_id=%s method=%s path=%s duration_ms=%.2f",
             request_id,
@@ -38,12 +48,10 @@ async def request_observability(request: Request, call_next):
             request.url.path,
             duration_ms,
         )
-
         raise
 
     duration_ms = (time.perf_counter() - start) * 1000
-
-    response.headers["X-Request-ID"] = request_id
+    _add_security_headers(response, request_id)
 
     logging.getLogger("cosmow.http").info(
         "request_completed request_id=%s method=%s path=%s status=%s duration_ms=%.2f",
@@ -62,29 +70,16 @@ async def unhandled_exception_handler(
     request: Request,
     exc: Exception,
 ):
-    return JSONResponse(
+    response = JSONResponse(
         status_code=500,
-        content={
-            "detail": "Internal server error.",
-        },
+        content={"detail": "Internal server error."},
     )
+    request_id = getattr(request.state, "request_id", uuid.uuid4().hex)
+    _add_security_headers(response, request_id)
+    return response
 
 
-app.include_router(
-    auth_router,
-    prefix="/api/v1",
-)
-
-app.include_router(
-    ai_router,
-    prefix="/api/v1",
-)
-
-
-app.include_router(
-    documents_router,
-    prefix="/api/v1",
-)
-
-
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(ai_router, prefix="/api/v1")
+app.include_router(documents_router, prefix="/api/v1")
 app.include_router(rag_router, prefix="/api/v1")
