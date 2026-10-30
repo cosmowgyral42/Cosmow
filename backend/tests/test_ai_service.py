@@ -47,7 +47,7 @@ def test_ai_service_success():
     assert result.content == "Successful response"
     reserve.assert_called_once_with(db, user)
     provider.generate.assert_called_once()
-    finalize.assert_called_once_with(db, user)
+    finalize.assert_called_once_with(db, user, reserve.return_value)
     release.assert_not_called()
 
 
@@ -79,7 +79,7 @@ def test_ai_service_releases_quota_on_provider_failure():
 
     reserve.assert_called_once_with(db, user)
     provider.generate.assert_called_once()
-    release.assert_called_once_with(db, user)
+    release.assert_called_once_with(db, user, reserve.return_value)
     finalize.assert_not_called()
 
 
@@ -141,7 +141,7 @@ def test_ai_service_handles_finalize_failure():
 
     reserve.assert_called_once_with(db, user)
     provider.generate.assert_called_once()
-    finalize.assert_called_once_with(db, user)
+    finalize.assert_called_once_with(db, user, reserve.return_value)
     db.rollback.assert_called_once()
 
 
@@ -184,7 +184,7 @@ def test_provider_rate_limit_releases_reserved_quota(monkeypatch):
         raise AssertionError("Expected AIServiceRateLimitError")
 
     reserve.assert_called_once_with(db, user)
-    release.assert_called_once_with(db, user)
+    release.assert_called_once_with(db, user, reserve.return_value)
     finalize.assert_not_called()
     provider.generate.assert_called_once()
 
@@ -209,7 +209,7 @@ def test_stream_finalizes_quota_after_success():
 
     assert result == ["one", "two"]
     reserve.assert_called_once_with(db, user)
-    finalize.assert_called_once_with(db, user)
+    finalize.assert_called_once_with(db, user, reserve.return_value)
     release.assert_not_called()
 
 
@@ -233,5 +233,5 @@ def test_stream_releases_quota_when_consumer_closes_early():
                 stream.close()
 
     reserve.assert_called_once_with(db, user)
-    release.assert_called_once_with(db, user)
+    release.assert_called_once_with(db, user, reserve.return_value)
     finalize.assert_not_called()

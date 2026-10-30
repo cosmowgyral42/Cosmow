@@ -1,18 +1,17 @@
-from collections.abc import Iterator
+﻿from collections.abc import Iterator
 
 from sqlalchemy.orm import Session
 
 from app.ai.provider import AIProvider
+from app.ai.providers.openrouter import AIProviderRateLimitError
 from app.ai.schemas import AIRequest, AIResponse
 from app.models.user import User
 from app.services.ai_quota import (
+    AIQuotaReservation,
     finalize_ai_call,
     release_ai_call,
     reserve_ai_call,
 )
-
-
-from app.ai.providers.openrouter import AIProviderRateLimitError
 
 
 class AIServiceError(Exception):
@@ -38,7 +37,7 @@ class AIService:
         request: AIRequest,
     ) -> AIResponse:
         try:
-            reserve_ai_call(db, user)
+            reservation = reserve_ai_call(db, user)
         except ValueError as exc:
             raise AIServiceQuotaError(str(exc)) from exc
 
@@ -46,7 +45,7 @@ class AIService:
             response = self.provider.generate(request)
         except AIProviderRateLimitError as exc:
             try:
-                release_ai_call(db, user)
+                release_ai_call(db, user, reservation)
             except Exception:
                 db.rollback()
             raise AIServiceRateLimitError(
@@ -54,19 +53,19 @@ class AIService:
             ) from exc
         except Exception as exc:
             try:
-                release_ai_call(db, user)
+                release_ai_call(db, user, reservation)
             except Exception:
                 db.rollback()
-
             raise AIServiceError(
                 "AI service is temporarily unavailable."
             ) from exc
 
         try:
-            finalize_ai_call(db, user)
+            finalize_ai_call(db, user, reservation)
         except Exception as exc:
             db.rollback()
-
+            # Keep the committed reservation: the provider may have charged
+            # usage, so releasing it here could allow quota bypass.
             raise AIServiceError(
                 "AI usage could not be finalized."
             ) from exc
@@ -80,7 +79,7 @@ class AIService:
         request: AIRequest,
     ) -> Iterator[str]:
         try:
-            reserve_ai_call(db, user)
+            reservation = reserve_ai_call(db, user)
         except ValueError as exc:
             raise AIServiceQuotaError(str(exc)) from exc
 
@@ -101,21 +100,19 @@ class AIService:
         finally:
             if completed:
                 try:
-                    finalize_ai_call(db, user)
+                    finalize_ai_call(db, user, reservation)
                 except Exception as exc:
                     db.rollback()
-                    try:
-                        release_ai_call(db, user)
-                    except Exception:
-                        db.rollback()
+                    # Do not release a successful provider call's reservation
+                    # when finalization fails. Leaving it reserved fails closed.
                     raise AIServiceError(
                         "AI usage could not be finalized."
                     ) from exc
             else:
-                # Includes provider errors and consumers closing the
-                # generator before the stream finishes.
+                # Provider errors and consumers closing the stream early.
+                # If release fails, the reservation remains counted.
                 try:
-                    release_ai_call(db, user)
+                    release_ai_call(db, user, reservation)
                 except Exception:
                     db.rollback()
 

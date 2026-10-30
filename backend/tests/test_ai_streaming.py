@@ -43,7 +43,7 @@ def test_stream_success_finalizes_quota():
 
     assert result == ["Hello ", "COSMOW"]
     reserve.assert_called_once_with(db, user)
-    finalize.assert_called_once_with(db, user)
+    finalize.assert_called_once_with(db, user, reserve.return_value)
     release.assert_not_called()
 
 
@@ -81,7 +81,7 @@ def test_stream_failure_releases_quota():
             )
 
     reserve.assert_called_once_with(db, user)
-    release.assert_called_once_with(db, user)
+    release.assert_called_once_with(db, user, reserve.return_value)
     finalize.assert_not_called()
 
 

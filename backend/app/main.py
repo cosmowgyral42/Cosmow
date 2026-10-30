@@ -5,6 +5,8 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.core.rate_limit import check_rate_limit
+
 from app.api.ai import router as ai_router
 from app.api.auth import router as auth_router
 from app.api.documents import router as documents_router
@@ -36,6 +38,18 @@ async def request_observability(request: Request, call_next):
     request_id = uuid.uuid4().hex
     request.state.request_id = request_id
     start = time.perf_counter()
+
+    client_key = request.client.host if request.client else "unknown"
+    retry_after = check_rate_limit(client_key, request.url.path)
+
+    if retry_after is not None:
+        response = JSONResponse(
+            status_code=429,
+            content={"detail": "Too many requests. Please try again shortly."},
+            headers={"Retry-After": str(retry_after)},
+        )
+        _add_security_headers(response, request_id)
+        return response
 
     try:
         response = await call_next(request)

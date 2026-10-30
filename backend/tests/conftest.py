@@ -30,3 +30,14 @@ def client():
 @pytest.fixture
 def unique_email():
     return f"test_{uuid.uuid4().hex}@example.com"
+
+# Keep in-memory rate-limit state isolated between tests.
+import pytest
+from app.core.rate_limit import reset_rate_limits
+
+
+@pytest.fixture(autouse=True)
+def isolate_rate_limits_between_tests():
+    reset_rate_limits()
+    yield
+    reset_rate_limits()
