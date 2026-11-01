@@ -1,4 +1,4 @@
-﻿from unittest.mock import patch
+from unittest.mock import patch
 from uuid import uuid4
 
 import jwt
@@ -163,3 +163,4 @@ def test_malformed_supabase_token_returns_401():
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Could not validate credentials"
+
