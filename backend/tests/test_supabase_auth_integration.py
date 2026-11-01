@@ -154,3 +154,12 @@ def test_supabase_token_with_wrong_signature_returns_401(monkeypatch):
     )
 
     assert response.status_code == 401
+
+def test_malformed_supabase_token_returns_401():
+    response = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": "Bearer not-a-valid-jwt"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Could not validate credentials"
