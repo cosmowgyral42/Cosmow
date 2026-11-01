@@ -53,14 +53,15 @@ async def request_observability(request: Request, call_next):
 
     try:
         response = await call_next(request)
-    except Exception:
+    except Exception as exc:
         duration_ms = (time.perf_counter() - start) * 1000
-        logging.getLogger("cosmow.http").exception(
-            "request_failed request_id=%s method=%s path=%s duration_ms=%.2f",
+        logging.getLogger("cosmow.http").error(
+            "request_failed request_id=%s method=%s path=%s duration_ms=%.2f error_type=%s",
             request_id,
             request.method,
             request.url.path,
             duration_ms,
+            type(exc).__name__,
         )
         raise
 

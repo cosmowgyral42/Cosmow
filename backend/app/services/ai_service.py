@@ -112,9 +112,10 @@ class AIService:
                 except Exception as exc:
                     try:
                         db.rollback()
-                    except Exception:
-                        logging.getLogger(__name__).exception(
-                            "AI database rollback failed after finalization"
+                    except Exception as rollback_exc:
+                        logging.getLogger(__name__).error(
+                            "AI database rollback failed after finalization error_type=%s",
+                            type(rollback_exc).__name__,
                         )
                     raise AIServiceError(
                         "AI usage could not be finalized."
@@ -129,15 +130,17 @@ class AIService:
                         finalize_ai_call(db, user, reservation)
                     else:
                         release_ai_call(db, user, reservation)
-                except Exception:
-                    logging.getLogger(__name__).exception(
-                        "AI quota reservation cleanup failed"
+                except Exception as cleanup_exc:
+                    logging.getLogger(__name__).error(
+                        "AI quota reservation cleanup failed error_type=%s",
+                        type(cleanup_exc).__name__,
                     )
                     try:
                         db.rollback()
-                    except Exception:
-                        logging.getLogger(__name__).exception(
-                            "AI database rollback failed during quota cleanup"
+                    except Exception as rollback_exc:
+                        logging.getLogger(__name__).error(
+                            "AI database rollback failed during quota cleanup error_type=%s",
+                            type(rollback_exc).__name__,
                         )
 
 

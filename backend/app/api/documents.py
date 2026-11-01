@@ -1,4 +1,4 @@
-﻿from typing import Annotated
+from typing import Annotated
 from pathlib import PurePath
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -86,7 +86,7 @@ def embed_uploaded_document(
     except LookupError:
         raise HTTPException(status_code=404, detail="Document not found.") from None
     except DocumentEmbeddingError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from None
+        raise HTTPException(status_code=503, detail="Document embedding is temporarily unavailable.") from None
 
     return EmbeddingResponse(
         document_id=document_id,

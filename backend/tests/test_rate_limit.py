@@ -33,3 +33,23 @@ def test_unconfigured_path_is_not_rate_limited():
     assert check_rate_limit("test-client", "/api/v1/auth/me") is None
 
     reset_rate_limits()
+
+def test_middleware_returns_429_after_login_limit(client):
+    reset_rate_limits()
+
+    try:
+        for _ in range(10):
+            response = client.post("/api/v1/auth/login", json={})
+            assert response.status_code != 429
+
+        response = client.post("/api/v1/auth/login", json={})
+
+        assert response.status_code == 429
+        assert response.json()["detail"] == (
+            "Too many requests. Please try again shortly."
+        )
+        assert int(response.headers["Retry-After"]) >= 1
+        assert response.headers["X-Request-ID"]
+        assert response.headers["X-Content-Type-Options"] == "nosniff"
+    finally:
+        reset_rate_limits()

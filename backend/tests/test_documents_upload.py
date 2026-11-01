@@ -132,3 +132,37 @@ def test_upload_splits_long_document_into_chunks(client, unique_email):
         assert chunks[1].content[-150:] == chunks[2].content[:150]
     finally:
         db.close()
+
+def test_embedding_api_hides_internal_provider_error(
+    client, unique_email, monkeypatch
+):
+    from app.api.documents import embed_document
+    from app.services.document_embedding_service import DocumentEmbeddingError
+
+    headers = register_and_login(client, unique_email)
+
+    upload = client.post(
+        "/api/v1/documents/upload",
+        headers=headers,
+        files={"file": ("private.txt", b"Test content", "text/plain")},
+    )
+    assert upload.status_code == 201
+    document_id = upload.json()["id"]
+
+    secret = "GEMINI_API_KEY=super-secret-test-value"
+
+    def fail_embedding(*args, **kwargs):
+        raise DocumentEmbeddingError(secret)
+
+    monkeypatch.setattr("app.api.documents.embed_document", fail_embedding)
+
+    response = client.post(
+        f"/api/v1/documents/{document_id}/embed",
+        headers=headers,
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == (
+        "Document embedding is temporarily unavailable."
+    )
+    assert secret not in response.text
