@@ -1,6 +1,6 @@
-from typing import Annotated
+﻿from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -48,14 +48,18 @@ def _handle_ai_error(exc: AIServiceError) -> HTTPException:
 )
 def generate_ai_response(
     request: AIRequest,
+    http_request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
+    request_id = http_request.state.request_id
+
     try:
         return ai_service.generate(
             db=db,
             user=current_user,
             request=request,
+            request_id=request_id,
         )
     except AIServiceError as exc:
         raise _handle_ai_error(exc) from None
@@ -64,19 +68,24 @@ def generate_ai_response(
 @router.post("/stream")
 def stream_ai_response(
     request: AIRequest,
+    http_request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
+    request_id = http_request.state.request_id
+
     try:
         generator = ai_service.stream(
             db=db,
             user=current_user,
             request=request,
+            request_id=request_id,
         )
 
         return StreamingResponse(
             generator,
             media_type="text/plain",
+            headers={"X-Request-ID": request_id},
         )
 
     except AIServiceError as exc:

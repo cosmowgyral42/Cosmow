@@ -82,6 +82,7 @@ def test_generate_returns_ai_response():
     }
 
     generate.assert_called_once()
+    assert generate.call_args.kwargs["request_id"] == response.headers["x-request-id"]
 
 
 def test_generate_rejects_invalid_prompt():
@@ -146,8 +147,9 @@ def test_stream_keeps_database_session_alive_until_response_finishes():
         finally:
             db.close()
 
-    def fake_stream(db, user, request):
+    def fake_stream(db, user, request, request_id=None):
         state = session_states[id(db)]
+        assert request_id is not None
 
         def chunks():
             assert state["closed"] is False
@@ -172,6 +174,7 @@ def test_stream_keeps_database_session_alive_until_response_finishes():
 
         assert response.status_code == 200
         assert response.text == "first second"
+        assert response.headers["x-request-id"]
         assert session_states
         assert all(state["closed"] for state in session_states.values())
     finally:
@@ -212,6 +215,7 @@ def test_stream_http_response_finalizes_quota():
             json={"prompt": "Streaming lifecycle test"},
         ) as response:
             assert response.status_code == 200
+            assert response.headers["x-request-id"]
             body = "".join(response.iter_text())
 
     assert body == "firstsecond"

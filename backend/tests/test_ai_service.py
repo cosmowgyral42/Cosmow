@@ -113,7 +113,42 @@ def test_ai_service_does_not_call_provider_when_quota_rejected():
     provider.generate.assert_not_called()
 
 
-def test_ai_service_handles_finalize_failure():
+def test_ai_service_retries_transient_finalize_failure():
+    provider = Mock()
+    provider.generate.return_value = AIResponse(
+        content="Successful response",
+        model="test-model",
+        provider="mock",
+    )
+
+    service = AIService(provider)
+    db = Mock()
+    user = make_user()
+
+    with patch(
+        "app.services.ai_service.reserve_ai_call"
+    ) as reserve, patch(
+        "app.services.ai_service.finalize_ai_call",
+        side_effect=[RuntimeError("temporary database failure"), None],
+    ) as finalize, patch(
+        "app.services.ai_service.release_ai_call"
+    ) as release:
+        result = service.generate(
+            db=db,
+            user=user,
+            request=AIRequest(prompt="Hello"),
+        )
+
+    assert result.content == "Successful response"
+    reserve.assert_called_once_with(db, user)
+    provider.generate.assert_called_once()
+    assert finalize.call_count == 2
+    finalize.assert_called_with(db, user, reserve.return_value)
+    db.rollback.assert_called_once()
+    release.assert_not_called()
+
+
+def test_ai_service_handles_persistent_finalize_failure():
     provider = Mock()
     provider.generate.return_value = AIResponse(
         content="Successful response",
@@ -130,8 +165,9 @@ def test_ai_service_handles_finalize_failure():
     ) as reserve, patch(
         "app.services.ai_service.finalize_ai_call",
         side_effect=RuntimeError("finalization failed"),
-    ) as finalize:
-
+    ) as finalize, patch(
+        "app.services.ai_service.release_ai_call"
+    ) as release:
         with pytest.raises(
             AIServiceError,
             match="AI usage could not be finalized",
@@ -144,8 +180,11 @@ def test_ai_service_handles_finalize_failure():
 
     reserve.assert_called_once_with(db, user)
     provider.generate.assert_called_once()
-    finalize.assert_called_once_with(db, user, reserve.return_value)
-    db.rollback.assert_called_once()
+    assert finalize.call_count == 2
+    finalize.assert_called_with(db, user, reserve.return_value)
+    assert db.rollback.call_count == 2
+    release.assert_not_called()
+
 
 
 def test_provider_rate_limit_releases_reserved_quota(monkeypatch):
