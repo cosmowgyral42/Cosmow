@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from sqlalchemy import select
 
 from app.ai.embeddings import EmbeddingError
@@ -233,3 +233,40 @@ def test_zero_embedding_vector_is_rejected(monkeypatch, unique_email):
     finally:
         db.rollback()
         db.close()
+
+def test_user_cannot_embed_another_users_document(unique_email):
+    db = SessionLocal()
+    provider = FakeEmbeddingProvider(vectors=[[0.1] * 768])
+
+    try:
+        owner, document, _ = create_document_with_chunks(
+            db, unique_email, ["private user A content"]
+        )
+
+        attacker = User(
+            email=f"attacker_{unique_email}",
+            password_hash="test-hash",
+            is_active=True,
+            timezone="Asia/Kolkata",
+        )
+        db.add(attacker)
+        db.commit()
+        db.refresh(attacker)
+
+        with pytest.raises(LookupError, match="not found"):
+            embed_document(
+                db,
+                user_id=attacker.id,
+                document_id=document.id,
+                provider=provider,
+            )
+
+        assert provider.calls == 0
+
+        db.refresh(document)
+        assert document.status == "uploaded"
+
+    finally:
+        db.rollback()
+        db.close()
+
