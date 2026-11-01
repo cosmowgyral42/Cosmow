@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     app_name: str = "COSMOW"
     app_version: str = "0.1.0"
     environment: str = "development"
+    cors_allowed_origins: str = "http://localhost:5173"
 
     database_url: str
 
@@ -39,6 +40,10 @@ class Settings(BaseSettings):
     def validate_production_security(self):
         if self.environment not in {"development", "test", "production"}:
             raise ValueError("Invalid environment")
+
+        origins = [item.strip() for item in self.cors_allowed_origins.split(",") if item.strip()]
+        if not origins or "*" in origins:
+            raise ValueError("CORS origins must be explicit; wildcard origins are not allowed")
 
         if self.ai_model not in FREE_AI_MODELS:
             raise ValueError("AI model is not in the free-model allowlist")

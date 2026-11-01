@@ -196,3 +196,42 @@ def test_rag_prompt_marks_retrieved_context_as_untrusted(monkeypatch):
         )
 
     assert response.status_code == 200
+def test_malformed_json_returns_validation_error(client):
+    response = client.post(
+        "/api/v1/rag/ask",
+        content='{"question": ',
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422
+    assert "Traceback" not in response.text
+    assert "password" not in response.text.lower()
+
+
+def test_cors_preflight_allows_local_frontend():
+    with TestClient(app) as client:
+        response = client.options(
+            "/api/v1/rag/ask",
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization,content-type",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert response.headers["access-control-allow-credentials"] == "true"
+
+
+def test_cors_rejects_unconfigured_frontend_origin():
+    with TestClient(app) as client:
+        response = client.options(
+            "/api/v1/rag/ask",
+            headers={
+                "Origin": "https://untrusted.example",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+
+    assert "access-control-allow-origin" not in response.headers

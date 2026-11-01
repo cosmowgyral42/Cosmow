@@ -89,3 +89,21 @@ def test_free_ai_model_is_accepted():
         ai_model="openrouter/free",
     )
     assert settings.ai_model == "openrouter/free"
+
+
+def test_wildcard_cors_origin_is_rejected():
+    with pytest.raises(ValidationError):
+        Settings(
+            database_url="postgresql://localhost/cosmow_test",
+            jwt_secret_key="test-only-secret",
+            cors_allowed_origins="*",
+        )
+
+
+def test_multiple_explicit_cors_origins_are_accepted():
+    settings = Settings(
+        database_url="postgresql://localhost/cosmow_test",
+        jwt_secret_key="test-only-secret",
+        cors_allowed_origins="http://localhost:5173,https://example.com",
+    )
+    assert settings.cors_allowed_origins == "http://localhost:5173,https://example.com"
