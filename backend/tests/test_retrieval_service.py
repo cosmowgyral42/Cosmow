@@ -262,3 +262,28 @@ def test_retrieval_returns_empty_when_all_chunks_below_threshold(monkeypatch):
     )
 
     assert results == []
+
+
+
+def test_retrieval_hides_database_failure_details(monkeypatch):
+    monkeypatch.setattr(
+        retrieval_service.settings, "gemini_embedding_dimensions", 3
+    )
+
+    class BrokenDB:
+        def execute(self, statement):
+            raise RuntimeError("postgres password=super-secret")
+
+    with pytest.raises(
+        retrieval_service.RetrievalError,
+        match=r"^Document retrieval failed\.$",
+    ) as exc_info:
+        retrieval_service.retrieve_chunks(
+            BrokenDB(),
+            user_id=7,
+            question="Find my content",
+            provider=FakeProvider(),
+        )
+
+    assert "super-secret" not in str(exc_info.value)
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
