@@ -5,7 +5,7 @@ import httpx
 
 from app.ai.provider import AIProvider
 from app.ai.schemas import AIRequest, AIResponse
-from app.core.config import settings
+from app.core.config import FREE_AI_MODELS, settings
 
 
 class AIProviderError(Exception):
@@ -23,6 +23,9 @@ class OpenRouterProvider(AIProvider):
         base_url: str | None = None,
         timeout: float | None = None,
     ):
+        if settings.ai_model not in FREE_AI_MODELS:
+            raise AIProviderError("Configured AI model is not allowed.")
+
         self.api_key = api_key or settings.openrouter_api_key
         self.base_url = base_url or settings.openrouter_base_url
         self.timeout = timeout or settings.openrouter_timeout_seconds

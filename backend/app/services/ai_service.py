@@ -1,4 +1,5 @@
-﻿from collections.abc import Iterator
+﻿import logging
+from collections.abc import Iterator
 
 from sqlalchemy.orm import Session
 
@@ -109,7 +110,12 @@ class AIService:
                     finalize_ai_call(db, user, reservation)
                     finalized = True
                 except Exception as exc:
-                    db.rollback()
+                    try:
+                        db.rollback()
+                    except Exception:
+                        logging.getLogger(__name__).exception(
+                            "AI database rollback failed after finalization"
+                        )
                     raise AIServiceError(
                         "AI usage could not be finalized."
                     ) from exc
@@ -124,7 +130,15 @@ class AIService:
                     else:
                         release_ai_call(db, user, reservation)
                 except Exception:
-                    db.rollback()
+                    logging.getLogger(__name__).exception(
+                        "AI quota reservation cleanup failed"
+                    )
+                    try:
+                        db.rollback()
+                    except Exception:
+                        logging.getLogger(__name__).exception(
+                            "AI database rollback failed during quota cleanup"
+                        )
 
 
 def get_ai_service(provider: AIProvider) -> AIService:
