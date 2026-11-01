@@ -1,5 +1,6 @@
 import pytest
 
+from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.models.user import User
@@ -223,6 +224,31 @@ def test_global_quota_rejects_after_limit(unique_email):
             global_usage.successful_call_count = previous_global_count
 
         db.commit()
+
+    finally:
+        db.close()
+
+
+
+
+def test_reservation_database_failure_rolls_back(unique_email, monkeypatch):
+    db = SessionLocal()
+
+    try:
+        user = create_user(db, unique_email)
+
+        def fail_database_operation(*args, **kwargs):
+            raise RuntimeError("Simulated database failure")
+
+        original_execute = db.execute
+        monkeypatch.setattr(db, "execute", fail_database_operation)
+
+        with pytest.raises(RuntimeError, match="Simulated database failure"):
+            reserve_ai_call(db, user)
+
+        monkeypatch.setattr(db, "execute", original_execute)
+
+        assert db.execute(text("SELECT 1")).scalar_one() == 1
 
     finally:
         db.close()
