@@ -1,16 +1,18 @@
-from datetime import date
-
 import pytest
 
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.models.user import User
+from app.models.ai_quota_reservation import (
+    AIQuotaReservation as AIQuotaReservationRecord,
+)
 from app.services.ai_quota import (
     check_quota,
     finalize_ai_call,
     get_current_usage,
     get_global_usage,
     get_user_today,
+    get_global_today,
     record_usage,
     release_ai_call,
     reserve_ai_call,
@@ -27,7 +29,7 @@ def reset_global_quota():
 
         row = (
             db.query(AIGlobalUsage)
-            .filter(AIGlobalUsage.usage_date == date.today())
+            .filter(AIGlobalUsage.usage_date == get_global_today())
             .first()
         )
 
@@ -48,7 +50,7 @@ def reset_global_quota():
 
         row = (
             db.query(AIGlobalUsage)
-            .filter(AIGlobalUsage.usage_date == date.today())
+            .filter(AIGlobalUsage.usage_date == get_global_today())
             .first()
         )
 
@@ -192,7 +194,7 @@ def test_global_quota_rejects_after_limit(unique_email):
             from app.models.ai_global_usage import AIGlobalUsage
 
             global_usage = AIGlobalUsage(
-                usage_date=get_user_today(user),
+                usage_date=get_global_today(),
                 successful_call_count=settings.global_daily_ai_call_limit,
                 reserved_count=0,
             )
@@ -232,14 +234,14 @@ def test_failed_ai_call_releases_quota(unique_email):
     try:
         user = create_user(db, unique_email)
 
-        reserve_ai_call(db, user)
+        reservation = reserve_ai_call(db, user)
 
         usage = get_current_usage(db, user)
 
         assert usage.reserved_count == 1
         assert usage.request_count == 0
 
-        release_ai_call(db, user)
+        assert release_ai_call(db, user, reservation) is True
 
         usage = get_current_usage(db, user)
 
@@ -256,14 +258,14 @@ def test_successful_ai_call_consumes_quota(unique_email):
     try:
         user = create_user(db, unique_email)
 
-        reserve_ai_call(db, user)
+        reservation = reserve_ai_call(db, user)
 
         usage = get_current_usage(db, user)
 
         assert usage.reserved_count == 1
         assert usage.request_count == 0
 
-        finalize_ai_call(db, user)
+        assert finalize_ai_call(db, user, reservation) is True
 
         usage = get_current_usage(db, user)
 
@@ -273,6 +275,55 @@ def test_successful_ai_call_consumes_quota(unique_email):
     finally:
         db.close()
 
+
+
+
+def test_reservation_finalization_is_exactly_once(unique_email):
+    db = SessionLocal()
+    try:
+        user = create_user(db, unique_email)
+        reservation = reserve_ai_call(db, user)
+
+        assert finalize_ai_call(db, user, reservation) is True
+        assert finalize_ai_call(db, user, reservation) is False
+        assert release_ai_call(db, user, reservation) is False
+
+        db.refresh(reservation)
+        usage = get_current_usage(db, user)
+        global_usage = get_global_usage(db)
+
+        assert reservation.status == "succeeded"
+        assert reservation.completed_at is not None
+        assert usage.reserved_count == 0
+        assert usage.request_count == 1
+        assert global_usage.reserved_count == 0
+        assert global_usage.successful_call_count == 1
+    finally:
+        db.close()
+
+
+def test_reservation_release_is_exactly_once(unique_email):
+    db = SessionLocal()
+    try:
+        user = create_user(db, unique_email)
+        reservation = reserve_ai_call(db, user)
+
+        assert release_ai_call(db, user, reservation) is True
+        assert release_ai_call(db, user, reservation) is False
+        assert finalize_ai_call(db, user, reservation) is False
+
+        db.refresh(reservation)
+        usage = get_current_usage(db, user)
+        global_usage = get_global_usage(db)
+
+        assert reservation.status == "released"
+        assert reservation.completed_at is not None
+        assert usage.reserved_count == 0
+        assert usage.request_count == 0
+        assert global_usage.reserved_count == 0
+        assert global_usage.successful_call_count == 0
+    finally:
+        db.close()
 
 def test_user_quota_never_exceeds_limit_under_concurrency(unique_email):
     import threading
@@ -361,7 +412,7 @@ def test_global_quota_never_exceeds_limit(unique_email):
 
         if global_usage is None:
             global_usage = AIGlobalUsage(
-                usage_date=get_user_today(users[0]) if users else get_user_today(
+                usage_date=get_global_today() if users else get_user_today(
                     create_user(db, f"{unique_email}_date@example.com")
                 ),
                 successful_call_count=0,
@@ -438,7 +489,7 @@ def test_global_quota_never_exceeds_limit_under_concurrency(unique_email):
             from app.models.ai_global_usage import AIGlobalUsage
 
             global_usage = AIGlobalUsage(
-                usage_date=get_user_today(users[0]),
+                usage_date=get_global_today(),
                 successful_call_count=limit - 1,
                 reserved_count=0,
             )

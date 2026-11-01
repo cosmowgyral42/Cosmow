@@ -1,4 +1,3 @@
-﻿from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -8,13 +7,14 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.ai_global_usage import AIGlobalUsage
 from app.models.ai_usage import AIUsage
+from app.models.ai_quota_reservation import (
+    AIQuotaReservation as AIQuotaReservationRecord,
+)
 from app.models.user import User
 
 
-@dataclass(frozen=True)
-class AIQuotaReservation:
-    user_usage_date: date
-    global_usage_date: date
+# Backward-compatible name used by the AI service.
+AIQuotaReservation = AIQuotaReservationRecord
 
 
 def get_user_today(user: User) -> date:
@@ -52,6 +52,7 @@ def get_global_usage(
 
 def check_quota(db: Session, user: User) -> None:
     user_usage = get_current_usage(db, user)
+
     if user_usage and (
         user_usage.request_count + user_usage.reserved_count
     ) >= settings.daily_ai_request_limit:
@@ -61,21 +62,26 @@ def check_quota(db: Session, user: User) -> None:
         )
 
     global_usage = get_global_usage(db)
+
     if global_usage and (
         global_usage.successful_call_count + global_usage.reserved_count
     ) >= settings.global_daily_ai_call_limit:
         raise ValueError(
-            f"Today's global AI capacity of {settings.global_daily_ai_call_limit} "
-            "calls has been reached. AI requests are unavailable until tomorrow."
+            f"Today's global AI capacity of "
+            f"{settings.global_daily_ai_call_limit} calls has been reached. "
+            "AI requests are unavailable until tomorrow."
         )
 
 
-def reserve_ai_call(db: Session, user: User) -> AIQuotaReservation:
+def reserve_ai_call(
+    db: Session,
+    user: User,
+) -> AIQuotaReservationRecord:
     user_today = get_user_today(user)
     global_today = get_global_today()
 
     try:
-        # Serialize reservations to prevent concurrent quota oversubscription.
+        # Serialize reservations to prevent quota oversubscription.
         db.execute(
             text("SELECT pg_advisory_xact_lock(:lock_key)"),
             {"lock_key": 900000000},
@@ -85,7 +91,14 @@ def reserve_ai_call(db: Session, user: User) -> AIQuotaReservation:
             {"lock_key": 1000000 + user.id},
         )
 
-        user_usage = get_current_usage(db, user, user_today)
+        user_usage = db.scalar(
+            select(AIUsage)
+            .where(
+                AIUsage.user_id == user.id,
+                AIUsage.usage_date == user_today,
+            )
+            .with_for_update()
+        )
         if user_usage is None:
             user_usage = AIUsage(
                 user_id=user.id,
@@ -96,7 +109,12 @@ def reserve_ai_call(db: Session, user: User) -> AIQuotaReservation:
             db.add(user_usage)
             db.flush()
 
-        global_usage = get_global_usage(db, usage_date=global_today)
+        global_usage = db.scalar(
+            select(AIGlobalUsage)
+            .where(AIGlobalUsage.usage_date == global_today)
+            .with_for_update()
+        )
+
         if global_usage is None:
             global_usage = AIGlobalUsage(
                 usage_date=global_today,
@@ -118,66 +136,102 @@ def reserve_ai_call(db: Session, user: User) -> AIQuotaReservation:
             global_usage.successful_call_count + global_usage.reserved_count
         ) >= settings.global_daily_ai_call_limit:
             raise ValueError(
-                f"Today's global AI capacity of {settings.global_daily_ai_call_limit} "
-                "calls has been reached. AI requests are unavailable until tomorrow."
+                f"Today's global AI capacity of "
+                f"{settings.global_daily_ai_call_limit} calls has been reached. "
+                "AI requests are unavailable until tomorrow."
             )
 
         user_usage.reserved_count += 1
         global_usage.reserved_count += 1
+
+        reservation = AIQuotaReservationRecord(
+            user_id=user.id,
+            user_usage_date=user_today,
+            global_usage_date=global_today,
+            status="reserved",
+        )
+
+        db.add(reservation)
+        db.flush()
         db.commit()
+
+        return reservation
+
     except Exception:
         db.rollback()
         raise
 
-    return AIQuotaReservation(
-        user_usage_date=user_today,
-        global_usage_date=global_today,
-    )
 
-
-def _get_reservation_dates(
+def _get_locked_reservation(
+    db: Session,
     user: User,
-    reservation: AIQuotaReservation | None,
-) -> AIQuotaReservation:
-    if reservation is not None:
-        return reservation
-    return AIQuotaReservation(
-        user_usage_date=get_user_today(user),
-        global_usage_date=get_global_today(),
+    reservation: AIQuotaReservationRecord,
+) -> AIQuotaReservationRecord:
+    reservation_id = reservation.id
+
+    record = db.scalar(
+        select(AIQuotaReservationRecord)
+        .where(
+            AIQuotaReservationRecord.id == reservation_id,
+            AIQuotaReservationRecord.user_id == user.id,
+        )
+        .with_for_update()
     )
+
+    if record is None:
+        raise RuntimeError("AI quota reservation was not found.")
+
+    return record
 
 
 def finalize_ai_call(
     db: Session,
     user: User,
-    reservation: AIQuotaReservation | None = None,
-) -> None:
-    dates = _get_reservation_dates(user, reservation)
+    reservation: AIQuotaReservationRecord,
+) -> bool:
     try:
+        record = _get_locked_reservation(db, user, reservation)
+
+        # A reservation can only be finalized once.
+        if record.status != "reserved":
+            db.commit()
+            return False
+
         user_usage = db.scalar(
             select(AIUsage)
             .where(
                 AIUsage.user_id == user.id,
-                AIUsage.usage_date == dates.user_usage_date,
+                AIUsage.usage_date == record.user_usage_date,
             )
             .with_for_update()
         )
+
         global_usage = db.scalar(
             select(AIGlobalUsage)
-            .where(AIGlobalUsage.usage_date == dates.global_usage_date)
+            .where(
+                AIGlobalUsage.usage_date == record.global_usage_date
+            )
             .with_for_update()
         )
 
         if user_usage is None or global_usage is None:
-            raise RuntimeError("AI quota reservation was not found.")
+            raise RuntimeError("AI quota usage records were not found.")
+
         if user_usage.reserved_count <= 0 or global_usage.reserved_count <= 0:
-            raise RuntimeError("AI quota reservation is invalid.")
+            raise RuntimeError("AI quota reservation counters are invalid.")
 
         user_usage.reserved_count -= 1
         user_usage.request_count += 1
+
         global_usage.reserved_count -= 1
         global_usage.successful_call_count += 1
+
+        record.status = "succeeded"
+        record.completed_at = datetime.now(timezone.utc)
+
         db.commit()
+        return True
+
     except Exception:
         db.rollback()
         raise
@@ -186,32 +240,48 @@ def finalize_ai_call(
 def release_ai_call(
     db: Session,
     user: User,
-    reservation: AIQuotaReservation | None = None,
-) -> None:
-    dates = _get_reservation_dates(user, reservation)
+    reservation: AIQuotaReservationRecord,
+) -> bool:
     try:
+        record = _get_locked_reservation(db, user, reservation)
+
+        # A reservation can only be released once.
+        if record.status != "reserved":
+            db.commit()
+            return False
+
         user_usage = db.scalar(
             select(AIUsage)
             .where(
                 AIUsage.user_id == user.id,
-                AIUsage.usage_date == dates.user_usage_date,
+                AIUsage.usage_date == record.user_usage_date,
             )
             .with_for_update()
         )
+
         global_usage = db.scalar(
             select(AIGlobalUsage)
-            .where(AIGlobalUsage.usage_date == dates.global_usage_date)
+            .where(
+                AIGlobalUsage.usage_date == record.global_usage_date
+            )
             .with_for_update()
         )
 
         if user_usage is None or global_usage is None:
-            raise RuntimeError("AI quota reservation was not found.")
+            raise RuntimeError("AI quota usage records were not found.")
+
         if user_usage.reserved_count <= 0 or global_usage.reserved_count <= 0:
-            raise RuntimeError("AI quota reservation is invalid.")
+            raise RuntimeError("AI quota reservation counters are invalid.")
 
         user_usage.reserved_count -= 1
         global_usage.reserved_count -= 1
+
+        record.status = "released"
+        record.completed_at = datetime.now(timezone.utc)
+
         db.commit()
+        return True
+
     except Exception:
         db.rollback()
         raise
@@ -224,8 +294,17 @@ def record_usage(
     reservation = reserve_ai_call(db, user)
     finalize_ai_call(db, user, reservation)
 
-    user_usage = get_current_usage(db, user, reservation.user_usage_date)
-    global_usage = get_global_usage(db, usage_date=reservation.global_usage_date)
+    user_usage = get_current_usage(
+        db,
+        user,
+        reservation.user_usage_date,
+    )
+    global_usage = get_global_usage(
+        db,
+        usage_date=reservation.global_usage_date,
+    )
+
     if user_usage is None or global_usage is None:
         raise RuntimeError("AI usage records were not found.")
+
     return user_usage, global_usage

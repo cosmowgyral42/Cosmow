@@ -48,6 +48,7 @@ class AIService:
                 release_ai_call(db, user, reservation)
             except Exception:
                 db.rollback()
+
             raise AIServiceRateLimitError(
                 "AI provider rate limit reached."
             ) from exc
@@ -56,6 +57,7 @@ class AIService:
                 release_ai_call(db, user, reservation)
             except Exception:
                 db.rollback()
+
             raise AIServiceError(
                 "AI service is temporarily unavailable."
             ) from exc
@@ -64,8 +66,6 @@ class AIService:
             finalize_ai_call(db, user, reservation)
         except Exception as exc:
             db.rollback()
-            # Keep the committed reservation: the provider may have charged
-            # usage, so releasing it here could allow quota bypass.
             raise AIServiceError(
                 "AI usage could not be finalized."
             ) from exc
@@ -83,36 +83,46 @@ class AIService:
         except ValueError as exc:
             raise AIServiceQuotaError(str(exc)) from exc
 
-        completed = False
+        has_content = False
+        finalized = False
+
         try:
             try:
                 for chunk in self.provider.stream(request):
+                    if chunk:
+                        has_content = True
                     yield chunk
-                completed = True
+
             except AIProviderRateLimitError as exc:
                 raise AIServiceRateLimitError(
                     "AI provider rate limit reached."
                 ) from exc
+            except AIServiceError:
+                raise
             except Exception as exc:
                 raise AIServiceError(
                     "AI service is temporarily unavailable."
                 ) from exc
-        finally:
-            if completed:
+
+            if has_content:
                 try:
                     finalize_ai_call(db, user, reservation)
+                    finalized = True
                 except Exception as exc:
                     db.rollback()
-                    # Do not release a successful provider call's reservation
-                    # when finalization fails. Leaving it reserved fails closed.
                     raise AIServiceError(
                         "AI usage could not be finalized."
                     ) from exc
             else:
-                # Provider errors and consumers closing the stream early.
-                # If release fails, the reservation remains counted.
+                release_ai_call(db, user, reservation)
+
+        finally:
+            if not finalized:
                 try:
-                    release_ai_call(db, user, reservation)
+                    if has_content:
+                        finalize_ai_call(db, user, reservation)
+                    else:
+                        release_ai_call(db, user, reservation)
                 except Exception:
                     db.rollback()
 

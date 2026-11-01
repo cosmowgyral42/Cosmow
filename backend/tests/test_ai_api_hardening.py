@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from app.main import app
 from fastapi.testclient import TestClient
-from app.services.ai_service import AIServiceError
+from app.services.ai_service import AIServiceError, AIServiceQuotaError
 
 
 client = TestClient(app)
@@ -39,7 +39,7 @@ def test_ai_quota_error_maps_to_429():
 
     with patch(
         "app.api.ai.ai_service.generate",
-        side_effect=AIServiceError(
+        side_effect=AIServiceQuotaError(
             "Daily AI request limit reached."
         ),
     ):

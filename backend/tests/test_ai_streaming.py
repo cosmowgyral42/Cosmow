@@ -47,7 +47,7 @@ def test_stream_success_finalizes_quota():
     release.assert_not_called()
 
 
-def test_stream_failure_releases_quota():
+def test_stream_partial_failure_consumes_quota():
     provider = Mock()
 
     def failing_stream(request):
@@ -81,8 +81,8 @@ def test_stream_failure_releases_quota():
             )
 
     reserve.assert_called_once_with(db, user)
-    release.assert_called_once_with(db, user, reserve.return_value)
-    finalize.assert_not_called()
+    release.assert_not_called()
+    finalize.assert_called_once_with(db, user, reserve.return_value)
 
 
 def test_stream_quota_rejection_does_not_call_provider():

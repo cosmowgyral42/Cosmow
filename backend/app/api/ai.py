@@ -9,7 +9,12 @@ from app.ai.schemas import AIRequest, AIResponse
 from app.api.auth_dependencies import get_current_user
 from app.api.dependencies import get_db
 from app.models.user import User
-from app.services.ai_service import AIService, AIServiceError
+from app.services.ai_service import (
+    AIService,
+    AIServiceError,
+    AIServiceQuotaError,
+    AIServiceRateLimitError,
+)
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
@@ -19,12 +24,16 @@ ai_service = AIService(
 
 
 def _handle_ai_error(exc: AIServiceError) -> HTTPException:
-    detail = str(exc)
-
-    if "limit" in detail.lower():
+    if isinstance(exc, AIServiceQuotaError):
         return HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Daily AI request limit reached.",
+        )
+
+    if isinstance(exc, AIServiceRateLimitError):
+        return HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="AI provider rate limit reached. Please retry later.",
         )
 
     return HTTPException(
