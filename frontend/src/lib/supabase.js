@@ -1,11 +1,16 @@
-﻿import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
+
+const isPlaceholder =
+  !supabaseAnonKey ||
+  /^(replace_with_|your_supabase_)/i.test(supabaseAnonKey);
 
 export const isSupabaseConfigured = Boolean(
-  supabaseUrl && supabaseAnonKey &&
-  !supabaseAnonKey.startsWith("replace_with_")
+  supabaseUrl &&
+  supabaseAnonKey &&
+  !isPlaceholder
 );
 
 export const supabase = isSupabaseConfigured
@@ -13,7 +18,7 @@ export const supabase = isSupabaseConfigured
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true
-      }
+        detectSessionInUrl: true,
+      },
     })
   : null;
