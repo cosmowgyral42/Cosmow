@@ -1,0 +1,495 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Griffy&family=Oswald:wght@400;500;600;700&display=swap');
+
+:root {
+  --pink-bg: #fff1f6;
+  --pink-soft: #fce1ec;
+  --pink-card: #ffffff;
+  --pink-deep: #e9a9c4;
+  --pink-accent: #c66b94;
+  --pink-hover: #b85c85;
+  --text-main: #704b60;
+  --text-muted: #9b7a8c;
+  --border-soft: #f0d4e0;
+  --shadow-soft: 0 12px 35px rgba(174, 103, 139, 0.10);
+
+  --font-heading: "Griffy", cursive;
+  --font-subheading: "Oswald", sans-serif;
+  --font-body: "Courier Prime", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--pink-bg);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--text-main);
+  background: var(--pink-bg);
+  font-family: var(--font-body);
+}
+
+button, input, textarea, select {
+  font: inherit;
+}
+
+.auth-shell,
+.dashboard-shell {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  overflow: hidden;
+  color: var(--text-main);
+  background:
+    radial-gradient(circle at 12% 15%, rgba(247, 201, 220, .55), transparent 28%),
+    radial-gradient(circle at 88% 80%, rgba(252, 225, 236, .9), transparent 30%),
+    var(--pink-bg);
+}
+
+.auth-shell::before,
+.dashboard-shell::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 260px;
+  height: 260px;
+  top: 8%;
+  right: -100px;
+  border-radius: 50%;
+  background: rgba(239, 175, 203, .20);
+  filter: blur(2px);
+  animation: candy-float 9s ease-in-out infinite;
+}
+
+.auth-shell::after,
+.dashboard-shell::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 190px;
+  height: 190px;
+  bottom: 5%;
+  left: -85px;
+  border-radius: 50%;
+  background: rgba(247, 201, 220, .32);
+  animation: candy-float 11s ease-in-out infinite reverse;
+}
+
+.auth-card {
+  width: min(100%, 460px);
+  padding: 42px;
+  border: 1px solid var(--border-soft);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, .90);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(12px);
+  animation: fade-up .7s ease both;
+}
+
+.auth-brand {
+  display: inline-block;
+  color: var(--pink-accent);
+  font-family: var(--font-heading);
+  font-size: 2.5rem;
+  font-weight: 400;
+  letter-spacing: .04em;
+  text-decoration: none;
+}
+
+.auth-eyebrow {
+  margin: 28px 0 10px;
+  color: var(--pink-accent);
+  font-family: var(--font-subheading);
+  font-size: .85rem;
+  font-weight: 600;
+  letter-spacing: .16em;
+}
+
+.auth-card h1,
+.dashboard-content h1 {
+  margin: 0;
+  color: #9f5879;
+  font-family: var(--font-heading);
+  font-size: clamp(2rem, 5vw, 2.8rem);
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.auth-description,
+.dashboard-content > p {
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  line-height: 1.8;
+}
+
+.auth-form {
+  display: grid;
+  gap: 11px;
+  margin-top: 28px;
+}
+
+.auth-form label {
+  margin-top: 8px;
+  color: #80566d;
+  font-family: var(--font-subheading);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.auth-form input {
+  width: 100%;
+  padding: 14px 15px;
+  border: 1px solid var(--border-soft);
+  border-radius: 13px;
+  outline: none;
+  background: #fff8fb;
+  color: var(--text-main);
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.auth-form input::placeholder {
+  color: #c2a5b4;
+}
+
+.auth-form input:focus {
+  border-color: var(--pink-accent);
+  box-shadow: 0 0 0 4px rgba(198, 107, 148, .13);
+}
+
+.primary-button,
+.secondary-button {
+  padding: 13px 19px;
+  border-radius: 13px;
+  cursor: pointer;
+  font-family: var(--font-subheading);
+  font-size: 1rem;
+  font-weight: 500;
+  transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+}
+
+.primary-button {
+  margin-top: 13px;
+  border: 0;
+  background: var(--pink-accent);
+  color: #fff;
+  box-shadow: 0 7px 18px rgba(198, 107, 148, .20);
+}
+
+.primary-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: var(--pink-hover);
+  box-shadow: 0 10px 22px rgba(198, 107, 148, .27);
+}
+
+.secondary-button {
+  border: 1px solid var(--border-soft);
+  background: #fff;
+  color: #9f5879;
+}
+
+.secondary-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: var(--pink-soft);
+}
+
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: .6;
+}
+
+.auth-switch {
+  margin: 25px 0 0;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.auth-switch a {
+  color: var(--pink-accent);
+  font-weight: 700;
+}
+
+.form-error,
+.form-success {
+  padding: 12px;
+  border-radius: 12px;
+  font-size: .9rem;
+  line-height: 1.5;
+}
+
+.form-error {
+  border: 1px solid #efc0c7;
+  background: #fff0f1;
+  color: #a34c5a;
+}
+
+.form-success {
+  border: 1px solid #c5e5d2;
+  background: #effaf3;
+  color: #397b54;
+}
+
+.dashboard-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px clamp(20px, 6vw, 80px);
+  border-bottom: 1px solid var(--border-soft);
+  background: rgba(255, 255, 255, .72);
+  backdrop-filter: blur(12px);
+}
+
+.dashboard-topbar .auth-brand {
+  font-size: 2rem;
+}
+
+.dashboard-content {
+  width: min(760px, calc(100% - 40px));
+  margin: 72px auto;
+  animation: fade-up .7s ease both;
+}
+
+.dashboard-content .auth-eyebrow {
+  margin-top: 0;
+}
+
+.profile-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 30px;
+  padding: 26px;
+  border: 1px solid var(--border-soft);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .88);
+  box-shadow: var(--shadow-soft);
+  animation: fade-up .9s ease both;
+}
+
+.profile-panel span {
+  color: var(--text-muted);
+  font-family: var(--font-subheading);
+  font-size: .95rem;
+}
+
+.profile-panel strong {
+  overflow-wrap: anywhere;
+  color: #85566f;
+  font-family: var(--font-body);
+  font-weight: 700;
+}
+
+.dashboard-note {
+  margin-top: 24px;
+  padding: 16px 18px;
+  border-left: 3px solid var(--pink-deep);
+  border-radius: 0 12px 12px 0;
+  background: rgba(252, 225, 236, .65);
+  color: #89677a;
+  line-height: 1.7;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes candy-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-22px) rotate(8deg); }
+}
+
+@media (max-width: 520px) {
+  .auth-card {
+    padding: 30px 22px;
+  }
+
+  .profile-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-content {
+    margin: 44px auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* COSMOW 8.3 — Pink & Mint candy garden */
+
+:root {
+  --mint-bg: #eff8ef;
+  --mint-soft: #dcefdc;
+  --mint-card: #f5fbf3;
+  --mint-accent: #83ad8a;
+  --mint-deep: #527b5d;
+  --pink-bg: #fff1f6;
+  --pink-soft: #fce1ec;
+  --pink-accent: #c66b94;
+  --text-main: #665263;
+  --text-muted: #927b8b;
+  --border-soft: #eadce4;
+  --shadow-soft: 0 12px 35px rgba(120, 147, 122, .12);
+}
+
+/* Softer mixed pastel background */
+.auth-shell,
+.dashboard-shell {
+  background:
+    radial-gradient(ellipse at 12% 18%, rgba(252, 225, 236, .85), transparent 32%),
+    radial-gradient(ellipse at 88% 75%, rgba(220, 239, 220, .9), transparent 34%),
+    linear-gradient(135deg, #fff8fa, #f4faf1 55%, #fff2f7);
+  background-size: 140% 140%;
+  animation: pastel-background-drift 24s ease-in-out infinite alternate;
+}
+
+/* Floating candy drops */
+.auth-shell::before,
+.dashboard-shell::before {
+  width: 28px;
+  height: 42px;
+  top: 16%;
+  right: 12%;
+  border-radius: 70% 30% 65% 35%;
+  background: linear-gradient(145deg, #f6c9dc, #e9a9c4);
+  opacity: .55;
+  filter: blur(.2px);
+  box-shadow:
+    -170px 190px 0 -7px rgba(150, 195, 155, .65),
+    -320px 30px 0 -10px rgba(246, 201, 220, .8),
+    40px 300px 0 -8px rgba(150, 195, 155, .55);
+  animation: candy-drop 12s ease-in-out infinite;
+}
+
+.auth-shell::after,
+.dashboard-shell::after {
+  width: 19px;
+  height: 30px;
+  bottom: 18%;
+  left: 14%;
+  border-radius: 65% 35% 70% 30%;
+  background: linear-gradient(145deg, #c9e5c9, #8fbd97);
+  opacity: .65;
+  animation: candy-drop 15s ease-in-out infinite reverse;
+}
+
+/* Cards: lift, tilt and soft glow */
+.auth-card,
+.profile-panel,
+[class*="feature-card"],
+[class*="document-card"] {
+  transition:
+    transform .35s cubic-bezier(.2,.8,.2,1),
+    box-shadow .35s ease,
+    border-color .35s ease;
+}
+
+.auth-card:hover,
+.profile-panel:hover,
+[class*="feature-card"]:hover,
+[class*="document-card"]:hover {
+  transform: translateY(-7px) rotate(-.25deg);
+  border-color: #c9e5c9;
+  box-shadow: 0 20px 45px rgba(105, 151, 112, .16);
+}
+
+/* Green highlights for workspace information */
+.profile-panel {
+  background: linear-gradient(145deg, #ffffff, #f3faf1);
+  border-color: #d9ead8;
+}
+
+.profile-panel span {
+  color: #77927a;
+}
+
+.profile-panel strong {
+  color: #527b5d;
+}
+
+/* Mint and blush buttons */
+.secondary-button {
+  border-color: #d5e8d4;
+  background: #edf7eb;
+  color: #527b5d;
+}
+
+.secondary-button:hover:not(:disabled) {
+  background: #dcefdc;
+  box-shadow: 0 8px 20px rgba(112, 158, 119, .18);
+}
+
+.primary-button:hover:not(:disabled) {
+  transform: translateY(-3px) scale(1.025);
+}
+
+/* Inputs respond gently */
+.auth-form input:hover {
+  border-color: #b9d8bb;
+}
+
+.auth-form input:focus {
+  border-color: #83ad8a;
+  box-shadow: 0 0 0 4px rgba(131, 173, 138, .16);
+}
+
+/* Links and small interactive elements */
+a {
+  transition: color .2s ease, opacity .2s ease;
+}
+
+.auth-switch a:hover {
+  color: #527b5d;
+}
+
+/* Floating and falling motion */
+@keyframes candy-drop {
+  0%, 100% {
+    transform: translate3d(0, -10px, 0) rotate(-8deg);
+  }
+  35% {
+    transform: translate3d(14px, 35px, 0) rotate(14deg);
+  }
+  70% {
+    transform: translate3d(-9px, 75px, 0) rotate(-4deg);
+  }
+}
+
+@keyframes pastel-background-drift {
+  from { background-position: 0% 0%; }
+  to { background-position: 100% 100%; }
+}
+
+@media (hover: none) {
+  .auth-card:hover,
+  .profile-panel:hover,
+  [class*="feature-card"]:hover,
+  [class*="document-card"]:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-shell,
+  .dashboard-shell,
+  .auth-shell::before,
+  .auth-shell::after,
+  .dashboard-shell::before,
+  .dashboard-shell::after {
+    animation: none !important;
+  }
+}
