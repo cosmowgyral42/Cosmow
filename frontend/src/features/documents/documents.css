@@ -1,0 +1,164 @@
+﻿.documents-page {
+  min-height: 100vh;
+  padding: 36px 6%;
+  background: var(--color-background, #fff8fb);
+  color: var(--color-text, #302637);
+}
+
+.documents-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.documents-header h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3rem);
+}
+
+.documents-header p,
+.cos-muted {
+  color: #817486;
+}
+
+.documents-content {
+  width: min(900px, 100%);
+  margin: 0 auto;
+}
+
+.cos-upload-zone {
+  padding: 42px 20px;
+  text-align: center;
+  border: 2px dashed #e8b7d2;
+  border-radius: 22px;
+  background: #fff;
+}
+
+.cos-upload-icon,
+.cos-document-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 14px;
+  border-radius: 15px;
+  background: #fce5f0;
+  color: #a94d7c;
+  font-size: 25px;
+}
+
+.cos-button {
+  padding: 11px 18px;
+  border: 0;
+  border-radius: 12px;
+  background: #e9b5d0;
+  color: #382538;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cos-button:hover {
+  filter: brightness(.97);
+}
+
+.cos-button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.cos-button-secondary {
+  background: #d9f0e6;
+  white-space: nowrap;
+}
+
+.cos-section-heading {
+  margin: 36px 0 16px;
+}
+
+.cos-document-list {
+  display: grid;
+  gap: 14px;
+}
+
+.cos-document-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #f0dce8;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.cos-document-icon {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.cos-document-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.cos-document-info h3 {
+  overflow-wrap: anywhere;
+  margin: 0 0 5px;
+}
+
+.cos-document-info p {
+  margin: 0 0 8px;
+  color: #817486;
+  font-size: .88rem;
+}
+
+.cos-status {
+  color: #8a7187;
+  font-size: .82rem;
+}
+
+.cos-status.success {
+  color: #27845d;
+}
+
+.cos-status.pending {
+  color: #a66a28;
+}
+
+.cos-empty-state {
+  padding: 28px;
+  text-align: center;
+  border-radius: 18px;
+  background: #fff;
+  color: #817486;
+}
+
+.cos-error {
+  margin-top: 18px;
+  padding: 13px 16px;
+  border-radius: 12px;
+  background: #fff0f0;
+  color: #a83232;
+}
+
+.cos-back-link {
+  color: #865174;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .documents-page {
+    padding: 24px 16px;
+  }
+
+  .cos-document-card {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .cos-document-card .cos-button {
+    width: 100%;
+  }
+}
