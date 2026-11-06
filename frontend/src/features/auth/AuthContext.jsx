@@ -1,4 +1,4 @@
-import {
+﻿import {
   createContext,
   useCallback,
   useEffect,
@@ -29,12 +29,10 @@ export function AuthProvider({ children }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      if (!active) return;
+      if (!active || event === "TOKEN_REFRESHED") return;
 
-      if (event === "TOKEN_REFRESHED") return;
-
-      setLoading(Boolean(nextSession));
       setSession(nextSession);
+
       if (!nextSession) {
         setUser(null);
         setAuthError("");
@@ -42,17 +40,32 @@ export function AuthProvider({ children }) {
       }
     });
 
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (!active) return;
+    supabase.auth.getSession()
+      .then(({ data, error }) => {
+        if (!active) return;
 
-      if (error) {
+        if (error) {
+          setAuthError("Unable to restore your session. Please sign in again.");
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
+        setSession(data.session);
+
+        if (!data.session) {
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+
         setAuthError("Unable to restore your session. Please sign in again.");
         setSession(null);
-      } else {
-        setSession(data.session);
-      }
-      setLoading(false);
-    });
+        setUser(null);
+        setLoading(false);
+      });
 
     return () => {
       active = false;
