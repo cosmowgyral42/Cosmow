@@ -166,3 +166,40 @@ def test_embedding_api_hides_internal_provider_error(
         "Document embedding is temporarily unavailable."
     )
     assert secret not in response.text
+
+def test_list_documents_requires_authentication(client):
+    response = client.get("/api/v1/documents/")
+    assert response.status_code == 401
+
+
+def test_list_documents_returns_only_current_users_documents(
+    client, unique_email
+):
+    headers = register_and_login(client, unique_email)
+    other_headers = register_and_login(
+        client, f"other_{unique_email}"
+    )
+
+    client.post(
+        "/api/v1/documents/upload",
+        headers=headers,
+        files={"file": ("mine.txt", b"My document", "text/plain")},
+    )
+    client.post(
+        "/api/v1/documents/upload",
+        headers=other_headers,
+        files={"file": ("theirs.txt", b"Other document", "text/plain")},
+    )
+
+    response = client.get(
+        "/api/v1/documents/",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    documents = response.json()
+
+    assert len(documents) == 1
+    assert documents[0]["title"] == "mine"
+    assert documents[0]["status"] == "uploaded"
+    assert "created_at" in documents[0]

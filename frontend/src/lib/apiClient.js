@@ -95,6 +95,8 @@ async function request(url, options = {}) {
   return payload;
 }
 
+const inFlightGetRequests = new Map();
+
 export async function apiRequest(path, options = {}) {
   const headers = new Headers(options.headers || {});
 
@@ -112,12 +114,28 @@ export async function apiRequest(path, options = {}) {
     }
   }
 
-  return request(
-    `${API_BASE_URL}/${path.replace(/^\/+/, "")}`,
-    { ...options, headers }
-  );
-}
+  const url = `${API_BASE_URL}/${path.replace(/^\/+/, "")}`;
+  const method = (options.method || "GET").toUpperCase();
 
+  if (method !== "GET") {
+    return request(url, { ...options, headers });
+  }
+
+  const requestKey = `${url}::${headers.get("Authorization") || ""}`;
+  const existingRequest = inFlightGetRequests.get(requestKey);
+
+  if (existingRequest) {
+    return existingRequest;
+  }
+
+  const pendingRequest = request(url, { ...options, headers })
+    .finally(() => {
+      inFlightGetRequests.delete(requestKey);
+    });
+
+  inFlightGetRequests.set(requestKey, pendingRequest);
+  return pendingRequest;
+}
 export async function checkBackendHealth() {
   return request(`${BACKEND_ORIGIN}/health/live`);
 }

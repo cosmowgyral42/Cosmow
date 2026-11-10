@@ -1,13 +1,16 @@
-﻿import threading
+import threading
 import time
 from collections import deque
 
 # Limits are per client IP and route group, within a rolling 60-second window.
+# Reads and writes have separate budgets so normal navigation does not consume
+# the same small allowance as document mutations.
 _LIMITS = {
     "login": (10, 60),
     "register": (5, 60),
     "ai": (20, 60),
-    "documents": (10, 60),
+    "documents_read": (60, 60),
+    "documents_write": (20, 60),
     "rag": (15, 60),
 }
 
@@ -15,8 +18,14 @@ _events: dict[tuple[str, str], deque[float]] = {}
 _lock = threading.Lock()
 
 
-def check_rate_limit(client_key: str, path: str) -> int | None:
+def check_rate_limit(
+    client_key: str,
+    path: str,
+    method: str = "GET",
+) -> int | None:
     """Return retry-after seconds when limited; otherwise return None."""
+    method = method.upper()
+
     if path == "/api/v1/auth/login":
         group = "login"
     elif path == "/api/v1/auth/register":
@@ -24,7 +33,12 @@ def check_rate_limit(client_key: str, path: str) -> int | None:
     elif path.startswith("/api/v1/ai"):
         group = "ai"
     elif path.startswith("/api/v1/documents"):
-        group = "documents"
+        if method == "GET":
+            group = "documents_read"
+        elif method in {"POST", "DELETE"}:
+            group = "documents_write"
+        else:
+            return None
     elif path.startswith("/api/v1/rag"):
         group = "rag"
     else:

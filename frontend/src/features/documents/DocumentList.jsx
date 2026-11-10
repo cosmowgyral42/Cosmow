@@ -1,6 +1,11 @@
 ﻿import DocumentCard from "./DocumentCard.jsx";
 
-export default function DocumentList({ documents, onEmbed }) {
+export default function DocumentList({
+  documents,
+  onEmbed,
+  onDelete,
+  deletingId,
+}) {
   if (!documents.length) {
     return (
       <div className="cos-empty-state">
@@ -17,6 +22,8 @@ export default function DocumentList({ documents, onEmbed }) {
           key={document.id}
           document={document}
           onEmbed={onEmbed}
+          onDelete={onDelete}
+          deleting={deletingId === document.id}
         />
       ))}
     </div>

@@ -1,6 +1,11 @@
 ﻿import IndexingStatus from "./IndexingStatus.jsx";
 
-export default function DocumentCard({ document, onEmbed }) {
+export default function DocumentCard({
+  document,
+  onEmbed,
+  onDelete,
+  deleting,
+}) {
   return (
     <article className="cos-document-card">
       <div className="cos-document-icon">▤</div>
@@ -16,18 +21,30 @@ export default function DocumentCard({ document, onEmbed }) {
         <IndexingStatus document={document} />
       </div>
 
-      <button
-        className="cos-button cos-button-secondary"
-        type="button"
-        disabled={document.indexing || document.indexed}
-        onClick={() => onEmbed(document.id)}
-      >
-        {document.indexing
-          ? "Indexing..."
-          : document.indexed
-            ? "Indexed"
-            : "Index document"}
-      </button>
+      <div className="cos-document-actions">
+        <button
+          className="cos-button cos-button-secondary"
+          type="button"
+          disabled={document.indexing || document.status === "indexed"}
+          onClick={() => onEmbed(document.id)}
+        >
+          {document.indexing
+            ? "Cooking..."
+            : document.status === "indexed"
+              ? "Cooked"
+              : "Start Cooking"}
+        </button>
+
+        <button
+          className="cos-delete-button"
+          type="button"
+          disabled={deleting}
+          onClick={() => onDelete(document.id)}
+          aria-label={`Delete ${document.original_filename}`}
+        >
+          {deleting ? "Deleting..." : "Delete"}
+        </button>
+      </div>
     </article>
   );
 }

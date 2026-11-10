@@ -91,7 +91,7 @@ async def request_observability(request: Request, call_next):
     request.state.started_at = time.perf_counter()
 
     client_key = request.client.host if request.client else "unknown"
-    retry_after = check_rate_limit(client_key, request.url.path)
+    retry_after = check_rate_limit(client_key, request.url.path, request.method)
 
     if retry_after is not None:
         response = JSONResponse(
@@ -202,7 +202,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
     expose_headers=["X-Request-ID"],
 )
@@ -212,3 +212,4 @@ app.include_router(ai_router, prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
 app.include_router(rag_router, prefix="/api/v1")
 app.include_router(health_router)
+

@@ -1,4 +1,4 @@
-﻿import {
+import {
   createContext,
   useCallback,
   useEffect,
@@ -17,6 +17,9 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState("");
 
+  // Supabase emits INITIAL_SESSION when the listener is registered.
+  // Using that event as the single source of session initialization avoids
+  // racing getSession() against the auth-state listener.
   useEffect(() => {
     if (!supabase) {
       setLoading(false);
@@ -37,35 +40,10 @@ export function AuthProvider({ children }) {
         setUser(null);
         setAuthError("");
         setLoading(false);
+      } else {
+        setLoading(true);
       }
     });
-
-    supabase.auth.getSession()
-      .then(({ data, error }) => {
-        if (!active) return;
-
-        if (error) {
-          setAuthError("Unable to restore your session. Please sign in again.");
-          setSession(null);
-          setUser(null);
-          setLoading(false);
-          return;
-        }
-
-        setSession(data.session);
-
-        if (!data.session) {
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!active) return;
-
-        setAuthError("Unable to restore your session. Please sign in again.");
-        setSession(null);
-        setUser(null);
-        setLoading(false);
-      });
 
     return () => {
       active = false;
